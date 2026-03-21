@@ -33,12 +33,29 @@ class BallSealsPlaceScene
     @sprites["bg"] = Sprite.new(@viewport)
     @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
     @sprites["bg"].bitmap.fill_rect(0,0,Graphics.width,Graphics.height,Color.new(14,18,24))
+    # Draw GUI title bar decoration if available
+    title_bmp = BallSealsKIF.gui_bitmap(:title_bar)
+    if title_bmp
+      dest = Rect.new(0, 0, Graphics.width, 38)
+      src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
+    end
     @sprites["title"] = Window_UnformattedTextPokemon.newWithSize("", 0, 0, Graphics.width, 64, @viewport)
     @sprites["title"].text = BallSealsKIF.intl("Place {1}", BallSealsKIF.seal_name(@seal_sym))[0, 26]
     @sprites["canvas"] = Sprite.new(@viewport)
     @sprites["canvas"].bitmap = Bitmap.new(240, 176)
     @sprites["canvas"].x = 16
     @sprites["canvas"].y = 72
+    # Draw seal icon preview on the right side
+    @sprites["seal_icon"] = Sprite.new(@viewport)
+    seal_bmp = BallSealsKIF.bitmap_for(@seal_sym)
+    if seal_bmp
+      @sprites["seal_icon"].bitmap = seal_bmp
+      @sprites["seal_icon"].x = 270
+      @sprites["seal_icon"].y = 80
+      @sprites["seal_icon"].zoom_x = 2.0
+      @sprites["seal_icon"].zoom_y = 2.0
+    end
     @sprites["help"] = Window_UnformattedTextPokemon.newWithSize("", 0, Graphics.height - 88, Graphics.width, 88, @viewport)
     @sprites["help"].text = BallSealsKIF.intl("D-Pad: Move  Confirm: Place  Back: Cancel")
     loop do
@@ -95,6 +112,20 @@ class BallSealsCapsuleEditorScene
     @sprites["bg"] = Sprite.new(@viewport)
     @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
     @sprites["bg"].bitmap.fill_rect(0,0,Graphics.width,Graphics.height,Color.new(14,18,24))
+    # Draw GUI title bar decoration across the top
+    title_bmp = BallSealsKIF.gui_bitmap(:title_bar)
+    if title_bmp
+      dest = Rect.new(0, 0, Graphics.width, 38)
+      src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
+    end
+    # Draw GUI side panel decoration behind the info area
+    panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
+    if panel_bmp
+      dest = Rect.new(264, 72, Graphics.width - 280, 232)
+      src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
+    end
     @sprites["title"] = Window_UnformattedTextPokemon.newWithSize("", 0, 0, Graphics.width, 64, @viewport)
     @sprites["canvas"] = Sprite.new(@viewport)
     @sprites["canvas"].bitmap = Bitmap.new(240,176)

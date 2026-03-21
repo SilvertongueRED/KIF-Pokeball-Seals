@@ -6,46 +6,187 @@ else
 $BallSealsKIFLoaded = true
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.1.8-ui-commands-rename-fix"
+  MOD_VERSION = "0.2.0-image-integration"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8
   FX_SCALE = 3.0
   CANVAS_ICON_SIZE = 20
 
-  EXTERNAL_ICON_FILES = {
-    :HEART  => "HEART.png",
-    :FLOWER => "FLOWER.png",
-    :STAR   => "STAR.png",
-    :RING   => "RING.png",
-    :FIRE   => "FIRE.png",
-    :SPARK  => "SPARK.png"
+  # ── Asset folder paths (relative to game root) ───────────────────
+  GRAPHICS_BASE  = File.join("Graphics", "BallSeals")
+  ICONS_DIR      = File.join(GRAPHICS_BASE, "Icons")
+  ANIMATIONS_DIR = File.join(GRAPHICS_BASE, "Animations")
+  GUI_DIR        = File.join(GRAPHICS_BASE, "GUI")
+
+  # ── GUI image files (in GUI/ folder) ──────────────────────────────
+  GUI_FILES = {
+    :capsule_shape => "seal_081.png",   # 46x48  - pokeball capsule overlay
+    :capsule_bg    => "seal_082.png",   # 50x64  - seal case background
+    :icon_strip    => "seal_085.png",   # 256x16 - UI icon strip (16 frames)
+    :side_panel    => "seal_086.png",   # 62x90  - info panel background
+    :title_bar     => "seal_087.png",   # 234x38 - header decoration bar
+    :scroll_strip  => "seal_091.png"    # 52x114 - scroll indicator strip
   }
 
+  # ── Seal definitions ──────────────────────────────────────────────
+  #  [symbol, display_name, fallback_color, fallback_size,
+  #   particle_count, gravity, spin]
+  #
+  # 49 seal types organized into 10 groups matching the icon images.
+  # Within each group, variants A-F/G produce increasing particle
+  # counts while sharing the same animation sprite.
   SEAL_DEFS = [
-    [:HEART,     "Heart",      Color.new(255,  90, 140, 220), 6, 10, 0.18, 0.10],
-    [:STAR,      "Star",       Color.new(255, 225, 110, 220), 6, 10, 0.16, 0.20],
-    [:BUBBLE,    "Bubble",     Color.new(120, 205, 255, 180), 7, 10, -0.03, 0.04],
-    [:SPARK,     "Spark",      Color.new(255, 255, 255, 230), 4, 12, 0.10, 0.28],
-    [:SMOKE,     "Smoke",      Color.new(135, 135, 135, 170), 8,  8, -0.02, 0.02],
-    [:NOTE,      "Note",       Color.new(185, 120, 255, 220), 6,  9, 0.10, 0.08],
-    [:FLOWER,    "Flower",     Color.new(255, 150,  65, 220), 6, 10, 0.14, 0.12],
-    [:LEAF,      "Leaf",       Color.new(110, 220, 120, 220), 6, 10, 0.16, 0.10],
-    [:SNOW,      "Snow",       Color.new(220, 245, 255, 220), 5, 10, 0.04, 0.02],
-    [:FIRE,      "Fire",       Color.new(255, 120,  60, 220), 6, 10, 0.22, 0.08],
-    [:RING,      "Ring",       Color.new(255, 240, 150, 200), 7,  8, 0.02, 0.06],
-    [:DROPLET,   "Droplet",    Color.new( 90, 170, 255, 220), 6, 10, 0.12, 0.05],
-    [:CONFETTI,  "Confetti",   Color.new(255, 160, 210, 220), 4, 14, 0.18, 0.24],
-    [:BEAM,      "Beam",       Color.new(255, 255, 170, 220), 5,  8, 0.06, 0.00],
-    [:CLOUD,     "Cloud",      Color.new(230, 230, 240, 180), 8,  8, -0.01, 0.01],
-    [:FLASH,     "Flash",      Color.new(255, 255, 255, 255), 5, 10, 0.08, 0.35]
+    # Heart Seals (seal_001 – seal_006)
+    [:HEART_A,  "Heart Seal A",  Color.new(255, 90,140,220),  6,  2, 0.18, 0.10],
+    [:HEART_B,  "Heart Seal B",  Color.new(255, 90,140,220),  6,  4, 0.18, 0.10],
+    [:HEART_C,  "Heart Seal C",  Color.new(255, 90,140,220),  6,  6, 0.18, 0.10],
+    [:HEART_D,  "Heart Seal D",  Color.new(255, 90,140,220),  6,  8, 0.18, 0.10],
+    [:HEART_E,  "Heart Seal E",  Color.new(255, 90,140,220),  6, 10, 0.18, 0.10],
+    [:HEART_F,  "Heart Seal F",  Color.new(255, 90,140,220),  6, 12, 0.18, 0.10],
+    # Star Seals (seal_007 – seal_012)
+    [:STAR_A,   "Star Seal A",   Color.new(255,225,110,220),  6,  2, 0.16, 0.20],
+    [:STAR_B,   "Star Seal B",   Color.new(255,225,110,220),  6,  4, 0.16, 0.20],
+    [:STAR_C,   "Star Seal C",   Color.new(255,225,110,220),  6,  6, 0.16, 0.20],
+    [:STAR_D,   "Star Seal D",   Color.new(255,225,110,220),  6,  8, 0.16, 0.20],
+    [:STAR_E,   "Star Seal E",   Color.new(255,225,110,220),  6, 10, 0.16, 0.20],
+    [:STAR_F,   "Star Seal F",   Color.new(255,225,110,220),  6, 12, 0.16, 0.20],
+    # Line Seals (seal_013 – seal_016)
+    [:LINE_A,   "Line Seal A",   Color.new(255,255,170,220),  5,  2, 0.06, 0.00],
+    [:LINE_B,   "Line Seal B",   Color.new(255,255,170,220),  5,  4, 0.06, 0.00],
+    [:LINE_C,   "Line Seal C",   Color.new(255,255,170,220),  5,  6, 0.06, 0.00],
+    [:LINE_D,   "Line Seal D",   Color.new(255,255,170,220),  5,  8, 0.06, 0.00],
+    # Smoke Seals (seal_017 – seal_020)
+    [:SMOKE_A,  "Smoke Seal A",  Color.new(135,135,135,170),  8,  2,-0.02, 0.02],
+    [:SMOKE_B,  "Smoke Seal B",  Color.new(135,135,135,170),  8,  4,-0.02, 0.02],
+    [:SMOKE_C,  "Smoke Seal C",  Color.new(135,135,135,170),  8,  6,-0.02, 0.02],
+    [:SMOKE_D,  "Smoke Seal D",  Color.new(135,135,135,170),  8,  8,-0.02, 0.02],
+    # Song Seals (seal_021 – seal_027)
+    [:SONG_A,   "Song Seal A",   Color.new(185,120,255,220),  6,  2, 0.10, 0.08],
+    [:SONG_B,   "Song Seal B",   Color.new(185,120,255,220),  6,  4, 0.10, 0.08],
+    [:SONG_C,   "Song Seal C",   Color.new(185,120,255,220),  6,  6, 0.10, 0.08],
+    [:SONG_D,   "Song Seal D",   Color.new(185,120,255,220),  6,  8, 0.10, 0.08],
+    [:SONG_E,   "Song Seal E",   Color.new(185,120,255,220),  6, 10, 0.10, 0.08],
+    [:SONG_F,   "Song Seal F",   Color.new(185,120,255,220),  6, 12, 0.10, 0.08],
+    [:SONG_G,   "Song Seal G",   Color.new(185,120,255,220),  6, 14, 0.10, 0.08],
+    # Fire Seals (seal_028 – seal_031)
+    [:FIRE_A,   "Fire Seal A",   Color.new(255,120, 60,220),  6,  2, 0.22, 0.08],
+    [:FIRE_B,   "Fire Seal B",   Color.new(255,120, 60,220),  6,  4, 0.22, 0.08],
+    [:FIRE_C,   "Fire Seal C",   Color.new(255,120, 60,220),  6,  6, 0.22, 0.08],
+    [:FIRE_D,   "Fire Seal D",   Color.new(255,120, 60,220),  6,  8, 0.22, 0.08],
+    # Party Seals (seal_032 – seal_035)
+    [:PARTY_A,  "Party Seal A",  Color.new(255,160,210,220),  4,  2, 0.18, 0.24],
+    [:PARTY_B,  "Party Seal B",  Color.new(255,160,210,220),  4,  4, 0.18, 0.24],
+    [:PARTY_C,  "Party Seal C",  Color.new(255,160,210,220),  4,  6, 0.18, 0.24],
+    [:PARTY_D,  "Party Seal D",  Color.new(255,160,210,220),  4,  8, 0.18, 0.24],
+    # Flora Seals (seal_036 – seal_040)
+    [:FLORA_A,  "Flora Seal A",  Color.new(110,220,120,220),  6,  2, 0.14, 0.12],
+    [:FLORA_B,  "Flora Seal B",  Color.new(110,220,120,220),  6,  4, 0.14, 0.12],
+    [:FLORA_C,  "Flora Seal C",  Color.new(110,220,120,220),  6,  6, 0.14, 0.12],
+    [:FLORA_D,  "Flora Seal D",  Color.new(110,220,120,220),  6,  8, 0.14, 0.12],
+    [:FLORA_E,  "Flora Seal E",  Color.new(110,220,120,220),  6, 10, 0.14, 0.12],
+    # Ele Seals (seal_041 – seal_045)
+    [:ELE_A,    "Ele Seal A",    Color.new(255,255,255,230),  4,  2, 0.10, 0.28],
+    [:ELE_B,    "Ele Seal B",    Color.new(255,255,255,230),  4,  4, 0.10, 0.28],
+    [:ELE_C,    "Ele Seal C",    Color.new(255,255,255,230),  4,  6, 0.10, 0.28],
+    [:ELE_D,    "Ele Seal D",    Color.new(255,255,255,230),  4,  8, 0.10, 0.28],
+    [:ELE_E,    "Ele Seal E",    Color.new(255,255,255,230),  4, 10, 0.10, 0.28],
+    # Foamy Seals (seal_046 – seal_049)
+    [:FOAMY_A,  "Foamy Seal A",  Color.new(120,205,255,180),  7,  2,-0.03, 0.04],
+    [:FOAMY_B,  "Foamy Seal B",  Color.new(120,205,255,180),  7,  4,-0.03, 0.04],
+    [:FOAMY_C,  "Foamy Seal C",  Color.new(120,205,255,180),  7,  6,-0.03, 0.04],
+    [:FOAMY_D,  "Foamy Seal D",  Color.new(120,205,255,180),  7,  8,-0.03, 0.04]
   ]
+
+  # ── Icon file mapping (Icons/ folder) ────────────────────────────
+  SEAL_ICON_FILES = {
+    :HEART_A => "seal_001.png", :HEART_B => "seal_002.png",
+    :HEART_C => "seal_003.png", :HEART_D => "seal_004.png",
+    :HEART_E => "seal_005.png", :HEART_F => "seal_006.png",
+    :STAR_A  => "seal_007.png", :STAR_B  => "seal_008.png",
+    :STAR_C  => "seal_009.png", :STAR_D  => "seal_010.png",
+    :STAR_E  => "seal_011.png", :STAR_F  => "seal_012.png",
+    :LINE_A  => "seal_013.png", :LINE_B  => "seal_014.png",
+    :LINE_C  => "seal_015.png", :LINE_D  => "seal_016.png",
+    :SMOKE_A => "seal_017.png", :SMOKE_B => "seal_018.png",
+    :SMOKE_C => "seal_019.png", :SMOKE_D => "seal_020.png",
+    :SONG_A  => "seal_021.png", :SONG_B  => "seal_022.png",
+    :SONG_C  => "seal_023.png", :SONG_D  => "seal_024.png",
+    :SONG_E  => "seal_025.png", :SONG_F  => "seal_026.png",
+    :SONG_G  => "seal_027.png",
+    :FIRE_A  => "seal_028.png", :FIRE_B  => "seal_029.png",
+    :FIRE_C  => "seal_030.png", :FIRE_D  => "seal_031.png",
+    :PARTY_A => "seal_032.png", :PARTY_B => "seal_033.png",
+    :PARTY_C => "seal_034.png", :PARTY_D => "seal_035.png",
+    :FLORA_A => "seal_036.png", :FLORA_B => "seal_037.png",
+    :FLORA_C => "seal_038.png", :FLORA_D => "seal_039.png",
+    :FLORA_E => "seal_040.png",
+    :ELE_A   => "seal_041.png", :ELE_B   => "seal_042.png",
+    :ELE_C   => "seal_043.png", :ELE_D   => "seal_044.png",
+    :ELE_E   => "seal_045.png",
+    :FOAMY_A => "seal_046.png", :FOAMY_B => "seal_047.png",
+    :FOAMY_C => "seal_048.png", :FOAMY_D => "seal_049.png"
+  }
+
+  # ── Animation file mapping (Animations/ folder) ──────────────────
+  # Seals in the same group share the same animation particle sprite;
+  # only the particle count varies between A/B/C… variants.
+  SEAL_ANIM_FILES = {
+    :HEART_A => "seal_050.png", :HEART_B => "seal_050.png",
+    :HEART_C => "seal_050.png", :HEART_D => "seal_050.png",
+    :HEART_E => "seal_050.png", :HEART_F => "seal_050.png",
+    :STAR_A  => "seal_055.png", :STAR_B  => "seal_055.png",
+    :STAR_C  => "seal_055.png", :STAR_D  => "seal_055.png",
+    :STAR_E  => "seal_055.png", :STAR_F  => "seal_055.png",
+    :LINE_A  => "seal_058.png", :LINE_B  => "seal_058.png",
+    :LINE_C  => "seal_058.png", :LINE_D  => "seal_058.png",
+    :SMOKE_A => "seal_062.png", :SMOKE_B => "seal_062.png",
+    :SMOKE_C => "seal_062.png", :SMOKE_D => "seal_062.png",
+    :SONG_A  => "seal_065.png", :SONG_B  => "seal_065.png",
+    :SONG_C  => "seal_065.png", :SONG_D  => "seal_065.png",
+    :SONG_E  => "seal_065.png", :SONG_F  => "seal_065.png",
+    :SONG_G  => "seal_065.png",
+    :FIRE_A  => "seal_069.png", :FIRE_B  => "seal_069.png",
+    :FIRE_C  => "seal_069.png", :FIRE_D  => "seal_069.png",
+    :PARTY_A => "seal_072.png", :PARTY_B => "seal_072.png",
+    :PARTY_C => "seal_072.png", :PARTY_D => "seal_072.png",
+    :FLORA_A => "seal_074.png", :FLORA_B => "seal_074.png",
+    :FLORA_C => "seal_074.png", :FLORA_D => "seal_074.png",
+    :FLORA_E => "seal_074.png",
+    :ELE_A   => "seal_077.png", :ELE_B   => "seal_077.png",
+    :ELE_C   => "seal_077.png", :ELE_D   => "seal_077.png",
+    :ELE_E   => "seal_077.png",
+    :FOAMY_A => "seal_079.png", :FOAMY_B => "seal_079.png",
+    :FOAMY_C => "seal_079.png", :FOAMY_D => "seal_079.png"
+  }
+
+  # ── Legacy seal symbol mapping (backward compat with older saves) ─
+  LEGACY_SEAL_MAP = {
+    :HEART    => :HEART_A,
+    :STAR     => :STAR_A,
+    :BUBBLE   => :FOAMY_A,
+    :SPARK    => :ELE_A,
+    :SMOKE    => :SMOKE_A,
+    :NOTE     => :SONG_A,
+    :FLOWER   => :FLORA_A,
+    :LEAF     => :FLORA_B,
+    :SNOW     => :FOAMY_B,
+    :FIRE     => :FIRE_A,
+    :RING     => :ELE_B,
+    :DROPLET  => :FOAMY_C,
+    :CONFETTI => :PARTY_A,
+    :BEAM     => :LINE_A,
+    :CLOUD    => :SMOKE_B,
+    :FLASH    => :ELE_C
+  }
 
   @bitmaps = {}
   @active_fx = []
   @replacement_queue = []
   @graphics_hook_installed = false
   @menu_ensure_calls = 0
+
+  # ── Helpers ───────────────────────────────────────────────────────
 
   def self.log(msg)
     begin
@@ -64,18 +205,28 @@ module BallSealsKIF
     end
   end
 
+  def self.resolve_seal_sym(sym)
+    sym = sym.to_sym rescue sym
+    return LEGACY_SEAL_MAP[sym] if LEGACY_SEAL_MAP.key?(sym)
+    sym
+  end
+
   def self.seal_defs; SEAL_DEFS; end
   def self.seal_ids; SEAL_DEFS.map { |s| s[0] }; end
 
   def self.seal_name(sym)
+    sym = resolve_seal_sym(sym)
     found = SEAL_DEFS.find { |s| s[0] == sym }
     return found ? found[1] : sym.to_s
   end
 
   def self.seal_style(sym)
+    sym = resolve_seal_sym(sym)
     found = SEAL_DEFS.find { |s| s[0] == sym }
     return found || SEAL_DEFS[0]
   end
+
+  # ── Save data ─────────────────────────────────────────────────────
 
   def self.ensure_global_data
     return nil if !$PokemonGlobal
@@ -125,7 +276,9 @@ module BallSealsKIF
   def self.clone_capsule(cap)
     {
       :name => (cap[:name] || "CAPSULE"),
-      :placements => (cap[:placements] || []).map { |p| { :seal => p[:seal], :x => p[:x], :y => p[:y] } }
+      :placements => (cap[:placements] || []).map { |p|
+        { :seal => resolve_seal_sym(p[:seal]), :x => p[:x], :y => p[:y] }
+      }
     }
   end
 
@@ -183,7 +336,7 @@ module BallSealsKIF
       pkmn.ball_seals[0, MAX_SEALS_PER_CAPSULE].each_with_index do |seal, i|
         ang = (i.to_f / [1, pkmn.ball_seals.length].max) * Math::PI * 2.0
         placements << {
-          :seal => seal,
+          :seal => resolve_seal_sym(seal),
           :x => 0.5 + Math.cos(ang) * 0.28,
           :y => 0.5 + Math.sin(ang) * 0.22
         }
@@ -202,18 +355,41 @@ module BallSealsKIF
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
   def self.consume_replacement_capsule; @replacement_queue.empty? ? nil : @replacement_queue.shift; end
 
-  def self.external_icon_path(sym)
-    filename = EXTERNAL_ICON_FILES[sym.to_sym] rescue nil
+  # ── Asset path helpers ────────────────────────────────────────────
+
+  def self.icon_path(sym)
+    sym = resolve_seal_sym(sym)
+    filename = SEAL_ICON_FILES[sym]
     return nil if !filename
-    path = File.join(Dir.pwd, "Graphics", "BallSeals", "Icons", filename) rescue nil
+    path = File.join(Dir.pwd, ICONS_DIR, filename) rescue nil
     return path if path && File.exist?(path)
     nil
   end
 
+  def self.animation_path(sym)
+    sym = resolve_seal_sym(sym)
+    filename = SEAL_ANIM_FILES[sym]
+    return nil if !filename
+    path = File.join(Dir.pwd, ANIMATIONS_DIR, filename) rescue nil
+    return path if path && File.exist?(path)
+    nil
+  end
+
+  def self.gui_path(key)
+    filename = GUI_FILES[key]
+    return nil if !filename
+    path = File.join(Dir.pwd, GUI_DIR, filename) rescue nil
+    return path if path && File.exist?(path)
+    nil
+  end
+
+  # ── Bitmap loading ────────────────────────────────────────────────
+
+  # Returns icon bitmap for menu/editor display (Icons/ folder).
   def self.bitmap_for(sym)
-    sym = sym.to_sym
+    sym = resolve_seal_sym(sym)
     return @bitmaps[sym] if @bitmaps[sym] && !@bitmaps[sym].disposed?
-    ext = external_icon_path(sym)
+    ext = icon_path(sym)
     if ext
       @bitmaps[sym] = Bitmap.new(ext)
       return @bitmaps[sym]
@@ -222,34 +398,38 @@ module BallSealsKIF
     size = style[3] || 6
     bmp = Bitmap.new(size, size)
     c = style[2] || Color.new(255,255,255,220)
-    case sym
-    when :HEART
-      bmp.fill_rect(1,1,2,2,c); bmp.fill_rect(size-3,1,2,2,c)
-      bmp.fill_rect(2,2,size-4,2,c); bmp.fill_rect(3,4,size-6,1,c)
-      bmp.fill_rect(size/2,size-2,1,1,c)
-    when :STAR, :FLASH
-      bmp.fill_rect(size/2,0,1,size,c); bmp.fill_rect(0,size/2,size,1,c)
-      bmp.fill_rect(1,1,1,1,c); bmp.fill_rect(size-2,1,1,1,c)
-      bmp.fill_rect(1,size-2,1,1,c); bmp.fill_rect(size-2,size-2,1,1,c)
-    when :BUBBLE, :RING
-      bmp.fill_rect(1,1,size-2,1,c); bmp.fill_rect(1,size-2,size-2,1,c)
-      bmp.fill_rect(1,2,1,size-4,c); bmp.fill_rect(size-2,2,1,size-4,c)
-    when :SMOKE, :CLOUD
-      bmp.fill_rect(1,2,size-2,size-4,c); bmp.fill_rect(2,1,size-4,1,c)
-      bmp.fill_rect(2,size-2,size-4,1,c)
-    when :NOTE
-      bmp.fill_rect(size-2,0,1,size-2,c); bmp.fill_rect(1,size-3,size-2,1,c)
-      bmp.fill_rect(0,size-2,2,2,c)
-    when :FLOWER
-      bmp.fill_rect(size/2,size/2,1,1,c)
-      bmp.fill_rect(size/2-1,0,3,1,c); bmp.fill_rect(size/2-1,size-1,3,1,c)
-      bmp.fill_rect(0,size/2-1,1,3,c); bmp.fill_rect(size-1,size/2-1,1,3,c)
-    else
-      bmp.fill_rect(0,0,size,size,c)
-    end
+    bmp.fill_rect(0, 0, size, size, c)
     @bitmaps[sym] = bmp
     bmp
   end
+
+  # Returns animation particle bitmap for pokeball burst (Animations/).
+  # Falls back to the icon bitmap if no animation file is found.
+  def self.animation_bitmap_for(sym)
+    sym = resolve_seal_sym(sym)
+    cache_key = :"anim_#{sym}"
+    return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
+    path = animation_path(sym)
+    if path
+      @bitmaps[cache_key] = Bitmap.new(path)
+      return @bitmaps[cache_key]
+    end
+    bitmap_for(sym)
+  end
+
+  # Returns a GUI element bitmap (GUI/ folder).
+  def self.gui_bitmap(key)
+    cache_key = :"gui_#{key}"
+    return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
+    path = gui_path(key)
+    return nil if !path
+    @bitmaps[cache_key] = Bitmap.new(path)
+    @bitmaps[cache_key]
+  rescue
+    nil
+  end
+
+  # ── Canvas drawing ────────────────────────────────────────────────
 
   def self.draw_capsule_shape(bitmap, x, y, w, h, fill, border)
     rx = w / 2.0
@@ -286,9 +466,18 @@ module BallSealsKIF
     bitmap.clear
     bg = Color.new(18, 22, 30)
     bitmap.fill_rect(0, 0, bitmap.width, bitmap.height, bg)
-    fill = Color.new(70, 80, 98)
-    border = Color.new(210, 220, 235)
-    draw_capsule_shape(bitmap, 16, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
+    # Try the GUI capsule shape image as an overlay; fall back to
+    # the procedurally drawn ellipse.
+    capsule_bmp = gui_bitmap(:capsule_shape)
+    if capsule_bmp
+      dest = Rect.new(16, 12, bitmap.width - 32, bitmap.height - 24)
+      src  = Rect.new(0, 0, capsule_bmp.width, capsule_bmp.height)
+      bitmap.stretch_blt(dest, capsule_bmp, src)
+    else
+      fill   = Color.new(70, 80, 98)
+      border = Color.new(210, 220, 235)
+      draw_capsule_shape(bitmap, 16, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
+    end
     bitmap.fill_rect(20, bitmap.height/2 - 1, bitmap.width - 40, 2, Color.new(120,140,160,120))
     bitmap.fill_rect(bitmap.width/2 - 1, 18, 2, bitmap.height - 36, Color.new(120,140,160,100))
     cap = cap || { :placements => [] }
@@ -309,14 +498,17 @@ module BallSealsKIF
     end
   end
 
+  # ── Pokeball opening burst animation ──────────────────────────────
+
   def self.start_capsule_burst_on_viewport(viewport, x, y, cap)
     return if !cap || !cap[:placements] || cap[:placements].empty?
     return if !viewport || (viewport.respond_to?(:disposed?) && viewport.disposed?)
     particles = []
     cap[:placements].each do |pl|
       style = seal_style(pl[:seal])
-      sym = style[0]
-      bmp = bitmap_for(sym)
+      sym   = style[0]
+      # Use animation sprite for the burst particles
+      bmp   = animation_bitmap_for(sym)
       count = style[4] || 10
       grav  = style[5] || 0.12
       spin  = style[6] || 0.10
@@ -385,6 +577,8 @@ module BallSealsKIF
     log("update_effects ERROR: #{e.class}: #{e.message}")
   end
 
+  # ── Viewport helpers ──────────────────────────────────────────────
+
   def self.resolve_test_viewport(scene)
     if scene
       [:@viewport, :@viewport1, :@viewport2, :@viewport0].each do |iv|
@@ -425,6 +619,8 @@ module BallSealsKIF
   rescue => e
     log("preview_capsule ERROR: #{e.class}: #{e.message}")
   end
+
+  # ── Engine hooks ──────────────────────────────────────────────────
 
   def self.tick
     frame = (Graphics.frame_count rescue nil)

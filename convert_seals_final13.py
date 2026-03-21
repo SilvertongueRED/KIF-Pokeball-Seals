@@ -12,6 +12,8 @@ Key fixes from v12:
 - Fixed Pillow deprecation: list(img.getdata()) instead of img.getdata()
 - Detailed file type mapping printed at startup
 - Per-seal debug output shows palette file index and mapping mode
+- Fixed 1D tile boundary scaling: NCER mapping_type now used to compute the
+  correct OAM→tile-array index conversion (fixes scrambled seals 83, 88, 89, 90)
 
 Install: pip install ndspy Pillow
 """
@@ -32,6 +34,11 @@ OAM_SIZES = {
     (1, 0): (16, 8),  (1, 1): (32, 8),  (1, 2): (32, 16), (1, 3): (64, 32),
     (2, 0): (8, 16),  (2, 1): (8, 32),  (2, 2): (16, 32), (2, 3): (32, 64),
 }
+
+# Default 1D tile-mapping boundary (bytes).  Matches NITRO mapping_type=16 (32-byte
+# 1D boundary), and is also used as the fallback for 2D-mapped sprites where the
+# boundary concept does not apply.
+DEFAULT_1D_BOUNDARY = 32
 
 
 def try_decompress(data):
@@ -163,15 +170,37 @@ def color5to8(c5):
     return (c5 << 3) | (c5 >> 2)
 
 
-def render_cell(cell_oams, tiles, colors, bpp, tile_offset=0, ncgr_tile_w=0):
+def get_1d_boundary(ncer_mapping):
+    """Convert NCER/NCGR mapping_type to the 1D tile-mapping boundary in bytes.
+
+    Documented encodings (NITRO format):
+      mapping_type == 0  → 2D mapping (use 32 as default boundary)
+      mapping_type == 16 → 1D, 32-byte boundary
+      mapping_type == 32 → 1D, 64-byte boundary
+      mapping_type == 64 → 1D, 128-byte boundary
+      ...
+    For 1D modes: boundary_bytes = ncer_mapping * 2.
+    """
+    if ncer_mapping <= 0:
+        return DEFAULT_1D_BOUNDARY
+    return ncer_mapping * 2
+
+
+def render_cell(cell_oams, tiles, colors, bpp, tile_offset=0, ncgr_tile_w=0, boundary=DEFAULT_1D_BOUNDARY):
     """Render one animation frame (cell) using OAM descriptors.
 
     ncgr_tile_w == 0  →  1D linear mapping: tiles are stored sequentially in
                           memory; for an OAM object of (tw × th) tiles the tile
-                          numbers are base_tile + ty*tw + tx.
+                          number is ((base_tile + ty*tw + tx) * boundary)
+                          // bytes_per_tile.
     ncgr_tile_w  > 0  →  2D VRAM mapping: tiles are laid out in a grid of
                           ncgr_tile_w columns; addressing is
                           (base_row + ty) * ncgr_tile_w + (base_col + tx).
+    boundary          →  1D mapping boundary size in bytes (from NCER mapping_type).
+                          OAM tile indices are in units of `boundary` bytes; the
+                          actual tile-array index is scaled accordingly.
+                          Examples: 4bpp + 32-byte boundary → scale 1 (unchanged);
+                                    4bpp + 64-byte boundary → scale 2.
     """
     if not cell_oams:
         return None
@@ -185,6 +214,7 @@ def render_cell(cell_oams, tiles, colors, bpp, tile_offset=0, ncgr_tile_w=0):
         return None
     img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
     pal_size = 16 if bpp == 4 else 256
+    bytes_per_tile = 32 if bpp == 4 else 64
 
     for oam in cell_oams:
         ox = oam['x'] - min_x
@@ -196,13 +226,15 @@ def render_cell(cell_oams, tiles, colors, bpp, tile_offset=0, ncgr_tile_w=0):
         for ty in range(th):
             for tx in range(tw):
                 if ncgr_tile_w > 0:
-                    # 2D VRAM mapping
+                    # 2D VRAM mapping: OAM tile index maps directly to grid position
                     base_col = base_tile % ncgr_tile_w
                     base_row = base_tile // ncgr_tile_w
                     tile_num = (base_row + ty) * ncgr_tile_w + (base_col + tx)
                 else:
-                    # 1D linear mapping (sequential)
-                    tile_num = base_tile + ty * tw + tx
+                    # 1D linear mapping: convert OAM character index (in boundary-
+                    # sized units) to a tile-array index.
+                    # For 4bpp+32B: scale=1 (unchanged); for 4bpp+64B: scale=2, etc.
+                    tile_num = ((base_tile + ty * tw + tx) * boundary) // bytes_per_tile
 
                 if tile_num < 0 or tile_num >= len(tiles):
                     continue
@@ -296,21 +328,21 @@ def find_nearest_nclr(seal_idx, nclr_indices):
     return min(nclr_indices, key=lambda x: abs(x - seal_idx))
 
 
-def render_frame(cell_oams, tiles, pal_colors, pal_list, bpp, vram_w):
+def render_frame(cell_oams, tiles, pal_colors, pal_list, bpp, vram_w, boundary=DEFAULT_1D_BOUNDARY):
     """Render one frame, trying pal_colors first then falling back to all palettes."""
     best_img = None
     used_pal = None
     if pal_colors is not None:
         padded = pal_colors + [(0, 0, 0)] * max(0, 256 - len(pal_colors))
         try:
-            img = render_cell(cell_oams, tiles, padded, bpp, 0, vram_w)
+            img = render_cell(cell_oams, tiles, padded, bpp, 0, vram_w, boundary)
             if img is not None and img.getbbox() is not None:
                 best_img = img.crop(img.getbbox())
         except Exception:
             pass
     if best_img is None:
         def render_fn(colors_):
-            return render_cell(cell_oams, tiles, colors_, bpp, 0, vram_w)
+            return render_cell(cell_oams, tiles, colors_, bpp, 0, vram_w, boundary)
         best_img, _, used_pal = try_all_palettes(pal_list, render_fn)
     return best_img, used_pal
 
@@ -427,10 +459,11 @@ def main():
 
         # ── Parse per-seal NCER ───────────────────────────────────────────────
         cells = None
+        ncer_mapping = 0
         if ncer_idx in file_data and file_types.get(ncer_idx) == 'NCER':
             result = parse_ncer(file_data[ncer_idx])
             if result:
-                cells, _ = result
+                cells, ncer_mapping = result
 
         # ── 1D vs 2D mapping detection (FIX) ─────────────────────────────────
         # mapping_type == 0 with valid tile dimensions → 2D VRAM grid layout.
@@ -441,6 +474,10 @@ def main():
         # For 1D mapping pass vram_w=0 → sequential tile indexing in render_cell
         vram_w = ncgr_tw if use_2d else 0
         mapping_mode = "2D" if use_2d else "1D"
+
+        # Compute 1D tile-mapping boundary from the NCER mapping_type.
+        # In 2D mode the boundary concept does not apply; use the default.
+        boundary = DEFAULT_1D_BOUNDARY if use_2d else get_1d_boundary(ncer_mapping)
 
         non_empty_cells = [c for c in cells if c] if cells else []
         has_cells = bool(non_empty_cells)
@@ -457,12 +494,13 @@ def main():
 
         if has_cells:
             print(f"    DEBUG seal {seal}: {n_tiles} tiles, NCGR={ncgr_tw}x{ncgr_th}, "
-                  f"map={ncgr_mapping}, {mapping_mode}, {len(non_empty_cells)} frame(s), "
+                  f"map={ncgr_mapping}, ncer_map={ncer_mapping}, boundary={boundary}B, "
+                  f"{mapping_mode}, {len(non_empty_cells)} frame(s), "
                   f"palette_file={nearest_pal_idx}")
 
             # ── Render frame 0 as the default output (FIX) ───────────────────
             frame0, fallback_pal = render_frame(
-                non_empty_cells[0], tiles, pal_colors, pal_list, bpp, vram_w)
+                non_empty_cells[0], tiles, pal_colors, pal_list, bpp, vram_w, boundary)
 
             if frame0 is None:
                 skipped += 1
@@ -482,7 +520,7 @@ def main():
                 frames = [frame0]
                 for cell_oams_f in non_empty_cells[1:]:
                     img_f, _ = render_frame(
-                        cell_oams_f, tiles, pal_colors, pal_list, bpp, vram_w)
+                        cell_oams_f, tiles, pal_colors, pal_list, bpp, vram_w, boundary)
                     frames.append(img_f)
                 sheet = make_spritesheet(frames)
                 if sheet:

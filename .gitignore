@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+output/
+output_sheets/
+cb_data_extracted/

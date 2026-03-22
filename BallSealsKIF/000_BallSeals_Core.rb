@@ -184,6 +184,30 @@ module BallSealsKIF
 
   # ── Helpers ───────────────────────────────────────────────────────
 
+  # Strips image file extension so paths work with RGSS/MKXP Bitmap.new,
+  # which auto-detects format and does not expect an extension in the path.
+  def self.strip_ext_for_rgss(path)
+    path.sub(/\.(png|bmp|jpg|jpeg|gif)$/i, "")
+  end
+
+  # Tries to load a Bitmap from path with its extension; if that fails,
+  # retries with the extension stripped (for RGSS/MKXP compatibility).
+  # Returns the Bitmap on success, or nil if both attempts fail.
+  def self.load_bitmap_with_fallback(path)
+    return nil if !path
+    begin
+      return Bitmap.new(path)
+    rescue
+    end
+    noext = strip_ext_for_rgss(path)
+    return nil if noext == path
+    begin
+      return Bitmap.new(noext)
+    rescue
+    end
+    nil
+  end
+
   def self.log(msg)
     begin
       File.open(LOG_PATH, "a") { |f| f.puts("[#{Time.now}] #{msg}") }
@@ -366,7 +390,7 @@ module BallSealsKIF
     rel = File.join(ICONS_DIR, filename)
     abs = File.join(Dir.pwd, rel) rescue nil
     return abs if abs && File.exist?(abs)
-    rel
+    strip_ext_for_rgss(rel)
   end
 
   def self.animation_path(sym)
@@ -376,7 +400,7 @@ module BallSealsKIF
     rel = File.join(ANIMATIONS_DIR, filename)
     abs = File.join(Dir.pwd, rel) rescue nil
     return abs if abs && File.exist?(abs)
-    rel
+    strip_ext_for_rgss(rel)
   end
 
   def self.gui_path(key)
@@ -385,7 +409,7 @@ module BallSealsKIF
     rel = File.join(GUI_DIR, filename)
     abs = File.join(Dir.pwd, rel) rescue nil
     return abs if abs && File.exist?(abs)
-    rel
+    strip_ext_for_rgss(rel)
   end
 
   # ── Bitmap loading ────────────────────────────────────────────────
@@ -394,13 +418,10 @@ module BallSealsKIF
   def self.bitmap_for(sym)
     sym = resolve_seal_sym(sym)
     return @bitmaps[sym] if @bitmaps[sym] && !@bitmaps[sym].disposed?
-    ext = icon_path(sym)
-    if ext
-      begin
-        @bitmaps[sym] = Bitmap.new(ext)
-        return @bitmaps[sym]
-      rescue
-      end
+    bmp = load_bitmap_with_fallback(icon_path(sym))
+    if bmp
+      @bitmaps[sym] = bmp
+      return @bitmaps[sym]
     end
     style = seal_style(sym)
     size = style[3] || 6
@@ -417,13 +438,10 @@ module BallSealsKIF
     sym = resolve_seal_sym(sym)
     cache_key = :"anim_#{sym}"
     return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
-    path = animation_path(sym)
-    if path
-      begin
-        @bitmaps[cache_key] = Bitmap.new(path)
-        return @bitmaps[cache_key]
-      rescue
-      end
+    bmp = load_bitmap_with_fallback(animation_path(sym))
+    if bmp
+      @bitmaps[cache_key] = bmp
+      return @bitmaps[cache_key]
     end
     bitmap_for(sym)
   end
@@ -432,12 +450,9 @@ module BallSealsKIF
   def self.gui_bitmap(key)
     cache_key = :"gui_#{key}"
     return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
-    path = gui_path(key)
-    return nil if !path
-    @bitmaps[cache_key] = Bitmap.new(path)
-    @bitmaps[cache_key]
-  rescue
-    nil
+    bmp = load_bitmap_with_fallback(gui_path(key))
+    @bitmaps[cache_key] = bmp
+    bmp
   end
 
   # ── Canvas drawing ────────────────────────────────────────────────

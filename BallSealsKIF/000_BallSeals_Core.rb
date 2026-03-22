@@ -17,12 +17,12 @@ module BallSealsKIF
 
   # ── GUI image files (in GUI/ folder) ──────────────────────────────
   GUI_FILES = {
-    :capsule_shape => "seal_081.png",   # 46x48  - pokeball capsule overlay
-    :capsule_bg    => "seal_082.png",   # 50x64  - seal case background
-    :icon_strip    => "seal_085.png",   # 256x16 - UI icon strip (16 frames)
-    :side_panel    => "seal_086.png",   # 62x90  - info panel background
-    :title_bar     => "seal_087.png",   # 234x38 - header decoration bar
-    :scroll_strip  => "seal_091.png"    # 52x114 - scroll indicator strip
+    :capsule_shape => "Pokeball.png",        # pokeball capsule overlay
+    :capsule_bg    => "Display Boxes A.png", # seal case background
+    :icon_strip    => "Palette.png",         # UI icon strip
+    :side_panel    => "Display Boxes B.png", # info panel background
+    :title_bar     => "Selector.png",        # header decoration bar
+    :scroll_strip  => "Cursors.png"          # scroll indicator strip
   }
 
   # ── Seal definitions ──────────────────────────────────────────────
@@ -33,127 +33,125 @@ module BallSealsKIF
   # Within each group, variants A-F/G produce increasing particle
   # counts while sharing the same animation sprite.
   SEAL_DEFS = [
-    # Heart Seals (seal_001 – seal_006)
-    [:HEART_A,  "Heart Seal A",  Color.new(255, 90,140,220),  6,  2, 0.18, 0.10],
-    [:HEART_B,  "Heart Seal B",  Color.new(255, 90,140,220),  6,  4, 0.18, 0.10],
-    [:HEART_C,  "Heart Seal C",  Color.new(255, 90,140,220),  6,  6, 0.18, 0.10],
-    [:HEART_D,  "Heart Seal D",  Color.new(255, 90,140,220),  6,  8, 0.18, 0.10],
-    [:HEART_E,  "Heart Seal E",  Color.new(255, 90,140,220),  6, 10, 0.18, 0.10],
-    [:HEART_F,  "Heart Seal F",  Color.new(255, 90,140,220),  6, 12, 0.18, 0.10],
-    # Star Seals (seal_007 – seal_012)
-    [:STAR_A,   "Star Seal A",   Color.new(255,225,110,220),  6,  2, 0.16, 0.20],
-    [:STAR_B,   "Star Seal B",   Color.new(255,225,110,220),  6,  4, 0.16, 0.20],
-    [:STAR_C,   "Star Seal C",   Color.new(255,225,110,220),  6,  6, 0.16, 0.20],
-    [:STAR_D,   "Star Seal D",   Color.new(255,225,110,220),  6,  8, 0.16, 0.20],
-    [:STAR_E,   "Star Seal E",   Color.new(255,225,110,220),  6, 10, 0.16, 0.20],
-    [:STAR_F,   "Star Seal F",   Color.new(255,225,110,220),  6, 12, 0.16, 0.20],
-    # Line Seals (seal_013 – seal_016)
-    [:LINE_A,   "Line Seal A",   Color.new(255,255,170,220),  5,  2, 0.06, 0.00],
-    [:LINE_B,   "Line Seal B",   Color.new(255,255,170,220),  5,  4, 0.06, 0.00],
-    [:LINE_C,   "Line Seal C",   Color.new(255,255,170,220),  5,  6, 0.06, 0.00],
-    [:LINE_D,   "Line Seal D",   Color.new(255,255,170,220),  5,  8, 0.06, 0.00],
-    # Smoke Seals (seal_017 – seal_020)
-    [:SMOKE_A,  "Smoke Seal A",  Color.new(135,135,135,170),  8,  2,-0.02, 0.02],
-    [:SMOKE_B,  "Smoke Seal B",  Color.new(135,135,135,170),  8,  4,-0.02, 0.02],
-    [:SMOKE_C,  "Smoke Seal C",  Color.new(135,135,135,170),  8,  6,-0.02, 0.02],
-    [:SMOKE_D,  "Smoke Seal D",  Color.new(135,135,135,170),  8,  8,-0.02, 0.02],
-    # Song Seals (seal_021 – seal_027)
-    [:SONG_A,   "Song Seal A",   Color.new(185,120,255,220),  6,  2, 0.10, 0.08],
-    [:SONG_B,   "Song Seal B",   Color.new(185,120,255,220),  6,  4, 0.10, 0.08],
-    [:SONG_C,   "Song Seal C",   Color.new(185,120,255,220),  6,  6, 0.10, 0.08],
-    [:SONG_D,   "Song Seal D",   Color.new(185,120,255,220),  6,  8, 0.10, 0.08],
-    [:SONG_E,   "Song Seal E",   Color.new(185,120,255,220),  6, 10, 0.10, 0.08],
-    [:SONG_F,   "Song Seal F",   Color.new(185,120,255,220),  6, 12, 0.10, 0.08],
-    [:SONG_G,   "Song Seal G",   Color.new(185,120,255,220),  6, 14, 0.10, 0.08],
-    # Fire Seals (seal_028 – seal_031)
-    [:FIRE_A,   "Fire Seal A",   Color.new(255,120, 60,220),  6,  2, 0.22, 0.08],
-    [:FIRE_B,   "Fire Seal B",   Color.new(255,120, 60,220),  6,  4, 0.22, 0.08],
-    [:FIRE_C,   "Fire Seal C",   Color.new(255,120, 60,220),  6,  6, 0.22, 0.08],
-    [:FIRE_D,   "Fire Seal D",   Color.new(255,120, 60,220),  6,  8, 0.22, 0.08],
-    # Party Seals (seal_032 – seal_035)
-    [:PARTY_A,  "Party Seal A",  Color.new(255,160,210,220),  4,  2, 0.18, 0.24],
-    [:PARTY_B,  "Party Seal B",  Color.new(255,160,210,220),  4,  4, 0.18, 0.24],
-    [:PARTY_C,  "Party Seal C",  Color.new(255,160,210,220),  4,  6, 0.18, 0.24],
-    [:PARTY_D,  "Party Seal D",  Color.new(255,160,210,220),  4,  8, 0.18, 0.24],
-    # Flora Seals (seal_036 – seal_040)
-    [:FLORA_A,  "Flora Seal A",  Color.new(110,220,120,220),  6,  2, 0.14, 0.12],
-    [:FLORA_B,  "Flora Seal B",  Color.new(110,220,120,220),  6,  4, 0.14, 0.12],
-    [:FLORA_C,  "Flora Seal C",  Color.new(110,220,120,220),  6,  6, 0.14, 0.12],
-    [:FLORA_D,  "Flora Seal D",  Color.new(110,220,120,220),  6,  8, 0.14, 0.12],
-    [:FLORA_E,  "Flora Seal E",  Color.new(110,220,120,220),  6, 10, 0.14, 0.12],
-    # Ele Seals (seal_041 – seal_045)
-    [:ELE_A,    "Ele Seal A",    Color.new(255,255,255,230),  4,  2, 0.10, 0.28],
-    [:ELE_B,    "Ele Seal B",    Color.new(255,255,255,230),  4,  4, 0.10, 0.28],
-    [:ELE_C,    "Ele Seal C",    Color.new(255,255,255,230),  4,  6, 0.10, 0.28],
-    [:ELE_D,    "Ele Seal D",    Color.new(255,255,255,230),  4,  8, 0.10, 0.28],
-    [:ELE_E,    "Ele Seal E",    Color.new(255,255,255,230),  4, 10, 0.10, 0.28],
-    # Foamy Seals (seal_046 – seal_049)
-    [:FOAMY_A,  "Foamy Seal A",  Color.new(120,205,255,180),  7,  2,-0.03, 0.04],
-    [:FOAMY_B,  "Foamy Seal B",  Color.new(120,205,255,180),  7,  4,-0.03, 0.04],
-    [:FOAMY_C,  "Foamy Seal C",  Color.new(120,205,255,180),  7,  6,-0.03, 0.04],
-    [:FOAMY_D,  "Foamy Seal D",  Color.new(120,205,255,180),  7,  8,-0.03, 0.04]
+    # Heart Seals (Heart Seal A – Heart Seal F)
+    [:HEART_A,     "Heart Seal A",     Color.new(255, 90,140,220),  6,  2, 0.18, 0.10],
+    [:HEART_B,     "Heart Seal B",     Color.new(255, 90,140,220),  6,  4, 0.18, 0.10],
+    [:HEART_C,     "Heart Seal C",     Color.new(255, 90,140,220),  6,  6, 0.18, 0.10],
+    [:HEART_D,     "Heart Seal D",     Color.new(255, 90,140,220),  6,  8, 0.18, 0.10],
+    [:HEART_E,     "Heart Seal E",     Color.new(255, 90,140,220),  6, 10, 0.18, 0.10],
+    [:HEART_F,     "Heart Seal F",     Color.new(255, 90,140,220),  6, 12, 0.18, 0.10],
+    # Star Seals (Star Seal A – Star Seal F)
+    [:STAR_A,      "Star Seal A",      Color.new(255,225,110,220),  6,  2, 0.16, 0.20],
+    [:STAR_B,      "Star Seal B",      Color.new(255,225,110,220),  6,  4, 0.16, 0.20],
+    [:STAR_C,      "Star Seal C",      Color.new(255,225,110,220),  6,  6, 0.16, 0.20],
+    [:STAR_D,      "Star Seal D",      Color.new(255,225,110,220),  6,  8, 0.16, 0.20],
+    [:STAR_E,      "Star Seal E",      Color.new(255,225,110,220),  6, 10, 0.16, 0.20],
+    [:STAR_F,      "Star Seal F",      Color.new(255,225,110,220),  6, 12, 0.16, 0.20],
+    # Line Seals (Line Seal A – Line Seal D)
+    [:LINE_A,      "Line Seal A",      Color.new(255,255,170,220),  5,  2, 0.06, 0.00],
+    [:LINE_B,      "Line Seal B",      Color.new(255,255,170,220),  5,  4, 0.06, 0.00],
+    [:LINE_C,      "Line Seal C",      Color.new(255,255,170,220),  5,  6, 0.06, 0.00],
+    [:LINE_D,      "Line Seal D",      Color.new(255,255,170,220),  5,  8, 0.06, 0.00],
+    # Smoke Seals (Smoke Seal A – Smoke Seal D)
+    [:SMOKE_A,     "Smoke Seal A",     Color.new(135,135,135,170),  8,  2,-0.02, 0.02],
+    [:SMOKE_B,     "Smoke Seal B",     Color.new(135,135,135,170),  8,  4,-0.02, 0.02],
+    [:SMOKE_C,     "Smoke Seal C",     Color.new(135,135,135,170),  8,  6,-0.02, 0.02],
+    [:SMOKE_D,     "Smoke Seal D",     Color.new(135,135,135,170),  8,  8,-0.02, 0.02],
+    # Song Seals (Song Seal A – Song Seal G)
+    [:SONG_A,      "Song Seal A",      Color.new(185,120,255,220),  6,  2, 0.10, 0.08],
+    [:SONG_B,      "Song Seal B",      Color.new(185,120,255,220),  6,  4, 0.10, 0.08],
+    [:SONG_C,      "Song Seal C",      Color.new(185,120,255,220),  6,  6, 0.10, 0.08],
+    [:SONG_D,      "Song Seal D",      Color.new(185,120,255,220),  6,  8, 0.10, 0.08],
+    [:SONG_E,      "Song Seal E",      Color.new(185,120,255,220),  6, 10, 0.10, 0.08],
+    [:SONG_F,      "Song Seal F",      Color.new(185,120,255,220),  6, 12, 0.10, 0.08],
+    [:SONG_G,      "Song Seal G",      Color.new(185,120,255,220),  6, 14, 0.10, 0.08],
+    # Fire Seals (Fire Seal A – Fire Seal D)
+    [:FIRE_A,      "Fire Seal A",      Color.new(255,120, 60,220),  6,  2, 0.22, 0.08],
+    [:FIRE_B,      "Fire Seal B",      Color.new(255,120, 60,220),  6,  4, 0.22, 0.08],
+    [:FIRE_C,      "Fire Seal C",      Color.new(255,120, 60,220),  6,  6, 0.22, 0.08],
+    [:FIRE_D,      "Fire Seal D",      Color.new(255,120, 60,220),  6,  8, 0.22, 0.08],
+    # Party Seals (Party Seal A – Party Seal D)
+    [:PARTY_A,     "Party Seal A",     Color.new(255,160,210,220),  4,  2, 0.18, 0.24],
+    [:PARTY_B,     "Party Seal B",     Color.new(255,160,210,220),  4,  4, 0.18, 0.24],
+    [:PARTY_C,     "Party Seal C",     Color.new(255,160,210,220),  4,  6, 0.18, 0.24],
+    [:PARTY_D,     "Party Seal D",     Color.new(255,160,210,220),  4,  8, 0.18, 0.24],
+    # Flora Seals (Flora Seal A – Flora Seal F)
+    [:FLORA_A,     "Flora Seal A",     Color.new(110,220,120,220),  6,  2, 0.14, 0.12],
+    [:FLORA_B,     "Flora Seal B",     Color.new(110,220,120,220),  6,  4, 0.14, 0.12],
+    [:FLORA_C,     "Flora Seal C",     Color.new(110,220,120,220),  6,  6, 0.14, 0.12],
+    [:FLORA_D,     "Flora Seal D",     Color.new(110,220,120,220),  6,  8, 0.14, 0.12],
+    [:FLORA_E,     "Flora Seal E",     Color.new(110,220,120,220),  6, 10, 0.14, 0.12],
+    [:FLORA_F,     "Flora Seal F",     Color.new(110,220,120,220),  6, 12, 0.14, 0.12],
+    # Electric Seals (Electric Seal A – Electric Seal D)
+    [:ELECTRIC_A,  "Electric Seal A",  Color.new(255,255,255,230),  4,  2, 0.10, 0.28],
+    [:ELECTRIC_B,  "Electric Seal B",  Color.new(255,255,255,230),  4,  4, 0.10, 0.28],
+    [:ELECTRIC_C,  "Electric Seal C",  Color.new(255,255,255,230),  4,  6, 0.10, 0.28],
+    [:ELECTRIC_D,  "Electric Seal D",  Color.new(255,255,255,230),  4,  8, 0.10, 0.28],
+    # Foamy Seals (Foamy Seal A – Foamy Seal D)
+    [:FOAMY_A,     "Foamy Seal A",     Color.new(120,205,255,180),  7,  2,-0.03, 0.04],
+    [:FOAMY_B,     "Foamy Seal B",     Color.new(120,205,255,180),  7,  4,-0.03, 0.04],
+    [:FOAMY_C,     "Foamy Seal C",     Color.new(120,205,255,180),  7,  6,-0.03, 0.04],
+    [:FOAMY_D,     "Foamy Seal D",     Color.new(120,205,255,180),  7,  8,-0.03, 0.04]
   ]
 
   # ── Icon file mapping (Icons/ folder) ────────────────────────────
   SEAL_ICON_FILES = {
-    :HEART_A => "seal_001.png", :HEART_B => "seal_002.png",
-    :HEART_C => "seal_003.png", :HEART_D => "seal_004.png",
-    :HEART_E => "seal_005.png", :HEART_F => "seal_006.png",
-    :STAR_A  => "seal_007.png", :STAR_B  => "seal_008.png",
-    :STAR_C  => "seal_009.png", :STAR_D  => "seal_010.png",
-    :STAR_E  => "seal_011.png", :STAR_F  => "seal_012.png",
-    :LINE_A  => "seal_013.png", :LINE_B  => "seal_014.png",
-    :LINE_C  => "seal_015.png", :LINE_D  => "seal_016.png",
-    :SMOKE_A => "seal_017.png", :SMOKE_B => "seal_018.png",
-    :SMOKE_C => "seal_019.png", :SMOKE_D => "seal_020.png",
-    :SONG_A  => "seal_021.png", :SONG_B  => "seal_022.png",
-    :SONG_C  => "seal_023.png", :SONG_D  => "seal_024.png",
-    :SONG_E  => "seal_025.png", :SONG_F  => "seal_026.png",
-    :SONG_G  => "seal_027.png",
-    :FIRE_A  => "seal_028.png", :FIRE_B  => "seal_029.png",
-    :FIRE_C  => "seal_030.png", :FIRE_D  => "seal_031.png",
-    :PARTY_A => "seal_032.png", :PARTY_B => "seal_033.png",
-    :PARTY_C => "seal_034.png", :PARTY_D => "seal_035.png",
-    :FLORA_A => "seal_036.png", :FLORA_B => "seal_037.png",
-    :FLORA_C => "seal_038.png", :FLORA_D => "seal_039.png",
-    :FLORA_E => "seal_040.png",
-    :ELE_A   => "seal_041.png", :ELE_B   => "seal_042.png",
-    :ELE_C   => "seal_043.png", :ELE_D   => "seal_044.png",
-    :ELE_E   => "seal_045.png",
-    :FOAMY_A => "seal_046.png", :FOAMY_B => "seal_047.png",
-    :FOAMY_C => "seal_048.png", :FOAMY_D => "seal_049.png"
+    :HEART_A    => "Heart Seal A.png",    :HEART_B    => "Heart Seal B.png",
+    :HEART_C    => "Heart Seal C.png",    :HEART_D    => "Heart Seal D.png",
+    :HEART_E    => "Heart Seal E.png",    :HEART_F    => "Heart Seal F.png",
+    :STAR_A     => "Star Seal A.png",     :STAR_B     => "Star Seal B.png",
+    :STAR_C     => "Star Seal C.png",     :STAR_D     => "Star Seal D.png",
+    :STAR_E     => "Star Seal E.png",     :STAR_F     => "Star Seal F.png",
+    :LINE_A     => "Line Seal A.png",     :LINE_B     => "Line Seal B.png",
+    :LINE_C     => "Line Seal C.png",     :LINE_D     => "Line Seal D.png",
+    :SMOKE_A    => "Smoke Seal A.png",    :SMOKE_B    => "Smoke Seal B.png",
+    :SMOKE_C    => "Smoke Seal C.png",    :SMOKE_D    => "Smoke Seal D.png",
+    :SONG_A     => "Song Seal A.png",     :SONG_B     => "Song Seal B.png",
+    :SONG_C     => "Song Seal C.png",     :SONG_D     => "Song Seal D.png",
+    :SONG_E     => "Song Seal E.png",     :SONG_F     => "Song Seal F.png",
+    :SONG_G     => "Song Seal G.png",
+    :FIRE_A     => "Fire Seal A.png",     :FIRE_B     => "Fire Seal B.png",
+    :FIRE_C     => "Fire Seal C.png",     :FIRE_D     => "Fire Seal D.png",
+    :PARTY_A    => "Party Seal A.png",    :PARTY_B    => "Party Seal B.png",
+    :PARTY_C    => "Party Seal C.png",    :PARTY_D    => "Party Seal D.png",
+    :FLORA_A    => "Flora Seal A.png",    :FLORA_B    => "Flora Seal B.png",
+    :FLORA_C    => "Flora Seal C.png",    :FLORA_D    => "Flora Seal D.png",
+    :FLORA_E    => "Flora Seal E.png",    :FLORA_F    => "Flora Seal F.png",
+    :ELECTRIC_A => "Electric Seal A.png", :ELECTRIC_B => "Electric Seal B.png",
+    :ELECTRIC_C => "Electric Seal C.png", :ELECTRIC_D => "Electric Seal D.png",
+    :FOAMY_A    => "Foamy Seal A.png",    :FOAMY_B    => "Foamy Seal B.png",
+    :FOAMY_C    => "Foamy Seal C.png",    :FOAMY_D    => "Foamy Seal D.png"
   }
 
   # ── Animation file mapping (Animations/ folder) ──────────────────
   # Seals in the same group share the same animation particle sprite;
   # only the particle count varies between A/B/C… variants.
   SEAL_ANIM_FILES = {
-    :HEART_A => "seal_050.png", :HEART_B => "seal_050.png",
-    :HEART_C => "seal_050.png", :HEART_D => "seal_050.png",
-    :HEART_E => "seal_050.png", :HEART_F => "seal_050.png",
-    :STAR_A  => "seal_055.png", :STAR_B  => "seal_055.png",
-    :STAR_C  => "seal_055.png", :STAR_D  => "seal_055.png",
-    :STAR_E  => "seal_055.png", :STAR_F  => "seal_055.png",
-    :LINE_A  => "seal_058.png", :LINE_B  => "seal_058.png",
-    :LINE_C  => "seal_058.png", :LINE_D  => "seal_058.png",
-    :SMOKE_A => "seal_062.png", :SMOKE_B => "seal_062.png",
-    :SMOKE_C => "seal_062.png", :SMOKE_D => "seal_062.png",
-    :SONG_A  => "seal_065.png", :SONG_B  => "seal_065.png",
-    :SONG_C  => "seal_065.png", :SONG_D  => "seal_065.png",
-    :SONG_E  => "seal_065.png", :SONG_F  => "seal_065.png",
-    :SONG_G  => "seal_065.png",
-    :FIRE_A  => "seal_069.png", :FIRE_B  => "seal_069.png",
-    :FIRE_C  => "seal_069.png", :FIRE_D  => "seal_069.png",
-    :PARTY_A => "seal_072.png", :PARTY_B => "seal_072.png",
-    :PARTY_C => "seal_072.png", :PARTY_D => "seal_072.png",
-    :FLORA_A => "seal_074.png", :FLORA_B => "seal_074.png",
-    :FLORA_C => "seal_074.png", :FLORA_D => "seal_074.png",
-    :FLORA_E => "seal_074.png",
-    :ELE_A   => "seal_077.png", :ELE_B   => "seal_077.png",
-    :ELE_C   => "seal_077.png", :ELE_D   => "seal_077.png",
-    :ELE_E   => "seal_077.png",
-    :FOAMY_A => "seal_079.png", :FOAMY_B => "seal_079.png",
-    :FOAMY_C => "seal_079.png", :FOAMY_D => "seal_079.png"
+    :HEART_A    => "Starburst Seal.png", :HEART_B    => "Starburst Seal.png",
+    :HEART_C    => "Starburst Seal.png", :HEART_D    => "Starburst Seal.png",
+    :HEART_E    => "Starburst Seal.png", :HEART_F    => "Starburst Seal.png",
+    :STAR_A     => "Starburst Seal.png", :STAR_B     => "Starburst Seal.png",
+    :STAR_C     => "Starburst Seal.png", :STAR_D     => "Starburst Seal.png",
+    :STAR_E     => "Starburst Seal.png", :STAR_F     => "Starburst Seal.png",
+    :LINE_A     => "Starburst Seal.png", :LINE_B     => "Starburst Seal.png",
+    :LINE_C     => "Starburst Seal.png", :LINE_D     => "Starburst Seal.png",
+    :SMOKE_A    => "Bubble Seal.png",    :SMOKE_B    => "Bubble Seal.png",
+    :SMOKE_C    => "Bubble Seal.png",    :SMOKE_D    => "Bubble Seal.png",
+    :SONG_A     => "Starburst Seal.png", :SONG_B     => "Starburst Seal.png",
+    :SONG_C     => "Starburst Seal.png", :SONG_D     => "Starburst Seal.png",
+    :SONG_E     => "Starburst Seal.png", :SONG_F     => "Starburst Seal.png",
+    :SONG_G     => "Starburst Seal.png",
+    :FIRE_A     => "Starburst Seal.png", :FIRE_B     => "Starburst Seal.png",
+    :FIRE_C     => "Starburst Seal.png", :FIRE_D     => "Starburst Seal.png",
+    :PARTY_A    => "Starburst Seal.png", :PARTY_B    => "Starburst Seal.png",
+    :PARTY_C    => "Starburst Seal.png", :PARTY_D    => "Starburst Seal.png",
+    :FLORA_A    => "Water Drop Seal.png",:FLORA_B    => "Water Drop Seal.png",
+    :FLORA_C    => "Water Drop Seal.png",:FLORA_D    => "Water Drop Seal.png",
+    :FLORA_E    => "Water Drop Seal.png",:FLORA_F    => "Water Drop Seal.png",
+    :ELECTRIC_A => "Starburst Seal.png", :ELECTRIC_B => "Starburst Seal.png",
+    :ELECTRIC_C => "Starburst Seal.png", :ELECTRIC_D => "Starburst Seal.png",
+    :FOAMY_A    => "Bubble Seal.png",    :FOAMY_B    => "Bubble Seal.png",
+    :FOAMY_C    => "Bubble Seal.png",    :FOAMY_D    => "Bubble Seal.png"
   }
 
   # ── Legacy seal symbol mapping (backward compat with older saves) ─
@@ -161,19 +159,24 @@ module BallSealsKIF
     :HEART    => :HEART_A,
     :STAR     => :STAR_A,
     :BUBBLE   => :FOAMY_A,
-    :SPARK    => :ELE_A,
+    :SPARK    => :ELECTRIC_A,
     :SMOKE    => :SMOKE_A,
     :NOTE     => :SONG_A,
     :FLOWER   => :FLORA_A,
     :LEAF     => :FLORA_B,
     :SNOW     => :FOAMY_B,
     :FIRE     => :FIRE_A,
-    :RING     => :ELE_B,
+    :RING     => :ELECTRIC_B,
     :DROPLET  => :FOAMY_C,
     :CONFETTI => :PARTY_A,
     :BEAM     => :LINE_A,
     :CLOUD    => :SMOKE_B,
-    :FLASH    => :ELE_C
+    :FLASH    => :ELECTRIC_C,
+    :ELE_A    => :ELECTRIC_A,
+    :ELE_B    => :ELECTRIC_B,
+    :ELE_C    => :ELECTRIC_C,
+    :ELE_D    => :ELECTRIC_D,
+    :ELE_E    => :ELECTRIC_D
   }
 
   @bitmaps ||= {}

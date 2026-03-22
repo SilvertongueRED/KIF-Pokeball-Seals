@@ -145,9 +145,9 @@ module BallSealsKIF
     :FIRE_C     => "Starburst Seal.png", :FIRE_D     => "Starburst Seal.png",
     :PARTY_A    => "Starburst Seal.png", :PARTY_B    => "Starburst Seal.png",
     :PARTY_C    => "Starburst Seal.png", :PARTY_D    => "Starburst Seal.png",
-    :FLORA_A    => "Water Drop Seal.png",:FLORA_B    => "Water Drop Seal.png",
-    :FLORA_C    => "Water Drop Seal.png",:FLORA_D    => "Water Drop Seal.png",
-    :FLORA_E    => "Water Drop Seal.png",:FLORA_F    => "Water Drop Seal.png",
+    :FLORA_A    => "Water Drop Seal.png", :FLORA_B    => "Water Drop Seal.png",
+    :FLORA_C    => "Water Drop Seal.png", :FLORA_D    => "Water Drop Seal.png",
+    :FLORA_E    => "Water Drop Seal.png", :FLORA_F    => "Water Drop Seal.png",
     :ELECTRIC_A => "Starburst Seal.png", :ELECTRIC_B => "Starburst Seal.png",
     :ELECTRIC_C => "Starburst Seal.png", :ELECTRIC_D => "Starburst Seal.png",
     :FOAMY_A    => "Bubble Seal.png",    :FOAMY_B    => "Bubble Seal.png",
@@ -176,7 +176,7 @@ module BallSealsKIF
     :ELE_B    => :ELECTRIC_B,
     :ELE_C    => :ELECTRIC_C,
     :ELE_D    => :ELECTRIC_D,
-    :ELE_E    => :ELECTRIC_D
+    :ELE_E    => :ELECTRIC_D  # was 10 particles; maps to closest available (8)
   }
 
   @bitmaps ||= {}

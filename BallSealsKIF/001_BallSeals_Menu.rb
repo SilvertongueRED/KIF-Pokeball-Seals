@@ -65,6 +65,7 @@ module BallSealsKIF
       BallSealsHubScene.new.main
     rescue => e
       log("open_hub_from_menu ERROR: #{e.class}: #{e.message}\n#{(e.backtrace || [])[0,5].join("\n")}")
+      pbMessage(intl("Ball Seals error: {1}", e.message.to_s[0, 60])) if defined?(pbMessage)
     end
   end
 

@@ -1,9 +1,5 @@
 # 000_BallSeals_Core.rb
 $BallSealsKIFLoaded ||= false
-if $BallSealsKIFLoaded
-  BallSealsKIF.log("Core load skipped: already loaded") if defined?(BallSealsKIF) && BallSealsKIF.respond_to?(:log)
-else
-$BallSealsKIFLoaded = true
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
   MOD_VERSION = "0.2.0-image-integration"
@@ -180,11 +176,11 @@ module BallSealsKIF
     :FLASH    => :ELE_C
   }
 
-  @bitmaps = {}
-  @active_fx = []
-  @replacement_queue = []
-  @graphics_hook_installed = false
-  @menu_ensure_calls = 0
+  @bitmaps ||= {}
+  @active_fx ||= []
+  @replacement_queue ||= []
+  @graphics_hook_installed ||= false
+  @menu_ensure_calls ||= 0
 
   # ── Helpers ───────────────────────────────────────────────────────
 
@@ -270,7 +266,12 @@ module BallSealsKIF
 
   def self.set_capsule(slot, cap)
     return if slot.nil? || slot < 1 || slot > MAX_CAPSULES
-    capsules[slot - 1] = cap
+    data = ensure_global_data
+    if !data
+      pbMessage(intl("Please load a save file first.")) if defined?(pbMessage)
+      return
+    end
+    data[:capsules][slot - 1] = cap
   end
 
   def self.clone_capsule(cap)
@@ -320,6 +321,7 @@ module BallSealsKIF
     mons[idx]
   rescue => e
     log("choose_party_pokemon ERROR: #{e.class}: #{e.message}")
+    pbMessage(intl("Ball Seals error: {1}", e.message.to_s[0, 60])) if defined?(pbMessage)
     nil
   end
 
@@ -361,26 +363,29 @@ module BallSealsKIF
     sym = resolve_seal_sym(sym)
     filename = SEAL_ICON_FILES[sym]
     return nil if !filename
-    path = File.join(Dir.pwd, ICONS_DIR, filename) rescue nil
-    return path if path && File.exist?(path)
-    nil
+    rel = File.join(ICONS_DIR, filename)
+    abs = File.join(Dir.pwd, rel) rescue nil
+    return abs if abs && File.exist?(abs)
+    rel
   end
 
   def self.animation_path(sym)
     sym = resolve_seal_sym(sym)
     filename = SEAL_ANIM_FILES[sym]
     return nil if !filename
-    path = File.join(Dir.pwd, ANIMATIONS_DIR, filename) rescue nil
-    return path if path && File.exist?(path)
-    nil
+    rel = File.join(ANIMATIONS_DIR, filename)
+    abs = File.join(Dir.pwd, rel) rescue nil
+    return abs if abs && File.exist?(abs)
+    rel
   end
 
   def self.gui_path(key)
     filename = GUI_FILES[key]
     return nil if !filename
-    path = File.join(Dir.pwd, GUI_DIR, filename) rescue nil
-    return path if path && File.exist?(path)
-    nil
+    rel = File.join(GUI_DIR, filename)
+    abs = File.join(Dir.pwd, rel) rescue nil
+    return abs if abs && File.exist?(abs)
+    rel
   end
 
   # ── Bitmap loading ────────────────────────────────────────────────
@@ -391,8 +396,11 @@ module BallSealsKIF
     return @bitmaps[sym] if @bitmaps[sym] && !@bitmaps[sym].disposed?
     ext = icon_path(sym)
     if ext
-      @bitmaps[sym] = Bitmap.new(ext)
-      return @bitmaps[sym]
+      begin
+        @bitmaps[sym] = Bitmap.new(ext)
+        return @bitmaps[sym]
+      rescue
+      end
     end
     style = seal_style(sym)
     size = style[3] || 6
@@ -411,8 +419,11 @@ module BallSealsKIF
     return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
     path = animation_path(sym)
     if path
-      @bitmaps[cache_key] = Bitmap.new(path)
-      return @bitmaps[cache_key]
+      begin
+        @bitmaps[cache_key] = Bitmap.new(path)
+        return @bitmaps[cache_key]
+      rescue
+      end
     end
     bitmap_for(sym)
   end
@@ -778,5 +789,7 @@ class BallSealsCommandScene
   end
 end
 
-BallSealsKIF.init
+unless $BallSealsKIFLoaded
+  $BallSealsKIFLoaded = true
+  BallSealsKIF.init
 end

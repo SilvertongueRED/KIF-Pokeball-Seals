@@ -669,12 +669,13 @@ module BallSealsKIF
 end
 
 class BallSealsCommandScene
-  def initialize(title, commands, help_text = nil, initial_index = 0, width = nil)
+  def initialize(title, commands, help_text = nil, initial_index = 0, width = nil, icons = nil)
     @title = title
     @commands = commands
     @help_text = help_text
     @initial_index = initial_index || 0
     @width = width || [Graphics.width - 32, 340].max
+    @icons = icons
   end
 
   def main
@@ -684,6 +685,20 @@ class BallSealsCommandScene
     @sprites["bg"] = Sprite.new(@viewport)
     @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
     @sprites["bg"].bitmap.fill_rect(0,0,Graphics.width,Graphics.height,Color.new(14,18,24))
+    # Draw GUI title bar decoration across the top
+    title_bmp = BallSealsKIF.gui_bitmap(:title_bar)
+    if title_bmp
+      dest = Rect.new(0, 0, Graphics.width, 38)
+      src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
+    end
+    # Draw icon_strip as a thin decorative separator below the title area
+    strip_bmp = BallSealsKIF.gui_bitmap(:icon_strip)
+    if strip_bmp
+      dest = Rect.new(0, 60, Graphics.width, 6)
+      src  = Rect.new(0, 0, strip_bmp.width, strip_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, strip_bmp, src)
+    end
     safe_title = @title.to_s
     safe_title = safe_title[0, 28]
     @sprites["title"] = Window_UnformattedTextPokemon.newWithSize(safe_title, 0, 0, Graphics.width, 64, @viewport)
@@ -692,11 +707,40 @@ class BallSealsCommandScene
     line_h = 34
     desired_h = (@commands.length * line_h) + 32
     win_h = [desired_h, Graphics.height - 96 - help_h].min
-    win_w = [@width, Graphics.width - 32].min
-    x = (Graphics.width - win_w) / 2
+    has_icons = @icons.is_a?(Array) && !@icons.empty?
+    win_w = has_icons ? [[@width, Graphics.width - 100].min, 240].max : [@width, Graphics.width - 32].min
+    x = has_icons ? 16 : (Graphics.width - win_w) / 2
     y = 68
     @sprites["cmd"] = Window_CommandPokemon.newWithSize(@commands, x, y, win_w, win_h, @viewport)
     @sprites["cmd"].index = [[@initial_index, 0].max, @commands.length - 1].min
+    # Draw scroll_strip as a scroll indicator when the list overflows
+    scroll_bmp = BallSealsKIF.gui_bitmap(:scroll_strip)
+    visible_lines = [(win_h - 32) / line_h, 1].max
+    if scroll_bmp && @commands.length > visible_lines
+      scroll_x = x + win_w + 2
+      scroll_h = [win_h, scroll_bmp.height].min
+      dest = Rect.new(scroll_x, y, [scroll_bmp.width / 2, 16].min, scroll_h)
+      src  = Rect.new(0, 0, scroll_bmp.width, scroll_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, scroll_bmp, src)
+    end
+    # Icon preview panel on the right side (when icons are provided)
+    if has_icons
+      panel_x = x + win_w + 24
+      panel_y = y
+      panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
+      if panel_bmp
+        dest = Rect.new(panel_x - 8, panel_y, Graphics.width - panel_x, win_h)
+        src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
+        @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
+      end
+      @sprites["icon_preview"] = Sprite.new(@viewport)
+      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21
+      @sprites["icon_preview"].y = panel_y + 16
+      @sprites["icon_preview"].zoom_x = 3.0
+      @sprites["icon_preview"].zoom_y = 3.0
+      @last_icon_index = -1
+      update_icon_preview
+    end
     if help_h > 0
       @sprites["help"] = Window_UnformattedTextPokemon.newWithSize(@help_text.to_s, 0, Graphics.height - help_h, Graphics.width, help_h, @viewport)
     end
@@ -705,6 +749,7 @@ class BallSealsCommandScene
       Graphics.update
       Input.update
       @sprites["cmd"].update
+      update_icon_preview if has_icons
       if Input.trigger?(Input::USE)
         ret = @sprites["cmd"].index
         dispose
@@ -714,6 +759,16 @@ class BallSealsCommandScene
         return nil
       end
     end
+  end
+
+  def update_icon_preview
+    return if !@icons || !@sprites["icon_preview"]
+    idx = @sprites["cmd"].index rescue 0
+    return if idx == @last_icon_index
+    @last_icon_index = idx
+    bmp = (idx >= 0 && idx < @icons.length) ? @icons[idx] : nil
+    @sprites["icon_preview"].bitmap = bmp
+  rescue
   end
 
   def dispose

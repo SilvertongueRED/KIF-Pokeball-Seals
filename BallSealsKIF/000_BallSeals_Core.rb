@@ -811,3 +811,24 @@ unless $BallSealsKIFLoaded
   $BallSealsKIFLoaded = true
   BallSealsKIF.init
 end
+
+#===============================================================================
+# Icon Override - point to Graphics/BallSeals/
+#===============================================================================
+if defined?(GameData) && defined?(GameData::Item)
+  class GameData::Item
+    class << self
+      alias ballseals_icon_original icon_filename
+      def icon_filename(item)
+        return ballseals_icon_original(item) if item.nil?
+        item_data = self.try_get(item)
+        if item_data && BallSealsKIF::SEAL_ICON_FILES.key?(item_data.id)
+          icon_file = BallSealsKIF::SEAL_ICON_FILES[item_data.id]
+          path = File.join(BallSealsKIF::ICONS_DIR, icon_file)
+          return path if pbResolveBitmap(path)
+        end
+        ballseals_icon_original(item)
+      end
+    end
+  end
+end

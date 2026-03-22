@@ -40,6 +40,27 @@ class BallSealsPlaceScene
       src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
       @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
     end
+    # Draw capsule_bg behind the canvas area
+    capsule_bg = BallSealsKIF.gui_bitmap(:capsule_bg)
+    if capsule_bg
+      dest = Rect.new(8, 64, 256, 192)
+      src  = Rect.new(0, 0, capsule_bg.width, capsule_bg.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, capsule_bg, src)
+    end
+    # Draw side_panel behind the seal info/preview area
+    panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
+    if panel_bmp
+      dest = Rect.new(264, 64, Graphics.width - 280, 192)
+      src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
+    end
+    # Draw icon_strip as a thin decorative separator below the title
+    strip_bmp = BallSealsKIF.gui_bitmap(:icon_strip)
+    if strip_bmp
+      dest = Rect.new(0, 60, Graphics.width, 6)
+      src  = Rect.new(0, 0, strip_bmp.width, strip_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, strip_bmp, src)
+    end
     @sprites["title"] = Window_UnformattedTextPokemon.newWithSize("", 0, 0, Graphics.width, 64, @viewport)
     @sprites["title"].text = BallSealsKIF.intl("Place {1}", BallSealsKIF.seal_name(@seal_sym))[0, 26]
     @sprites["canvas"] = Sprite.new(@viewport)
@@ -51,11 +72,14 @@ class BallSealsPlaceScene
     seal_bmp = BallSealsKIF.bitmap_for(@seal_sym)
     if seal_bmp
       @sprites["seal_icon"].bitmap = seal_bmp
-      @sprites["seal_icon"].x = 270
-      @sprites["seal_icon"].y = 80
-      @sprites["seal_icon"].zoom_x = 2.0
-      @sprites["seal_icon"].zoom_y = 2.0
+      @sprites["seal_icon"].x = 296
+      @sprites["seal_icon"].y = 90
+      @sprites["seal_icon"].zoom_x = 3.0
+      @sprites["seal_icon"].zoom_y = 3.0
     end
+    # Show seal name label below the icon preview
+    @sprites["seal_label"] = Window_UnformattedTextPokemon.newWithSize("", 264, 160, Graphics.width - 264, 56, @viewport)
+    @sprites["seal_label"].text = BallSealsKIF.seal_name(@seal_sym)
     @sprites["help"] = Window_UnformattedTextPokemon.newWithSize("", 0, Graphics.height - 88, Graphics.width, 88, @viewport)
     @sprites["help"].text = BallSealsKIF.intl("D-Pad: Move  Confirm: Place  Back: Cancel")
     loop do
@@ -119,10 +143,24 @@ class BallSealsCapsuleEditorScene
       src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
       @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
     end
+    # Draw icon_strip as a thin decorative separator below the title area
+    strip_bmp = BallSealsKIF.gui_bitmap(:icon_strip)
+    if strip_bmp
+      dest = Rect.new(0, 60, Graphics.width, 6)
+      src  = Rect.new(0, 0, strip_bmp.width, strip_bmp.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, strip_bmp, src)
+    end
+    # Draw capsule_bg behind the canvas area
+    capsule_bg = BallSealsKIF.gui_bitmap(:capsule_bg)
+    if capsule_bg
+      dest = Rect.new(8, 64, 256, 192)
+      src  = Rect.new(0, 0, capsule_bg.width, capsule_bg.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, capsule_bg, src)
+    end
     # Draw GUI side panel decoration behind the info area
     panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
     if panel_bmp
-      dest = Rect.new(264, 72, Graphics.width - 280, 232)
+      dest = Rect.new(264, 64, Graphics.width - 280, 240)
       src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
       @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
     end
@@ -215,7 +253,8 @@ class BallSealsCapsuleEditorScene
   def choose_seal
     defs = BallSealsKIF.seal_defs
     commands = defs.map { |s| "#{s[1]} x#{BallSealsKIF.inventory[s[0]] || 0}" }
-    idx = BallSealsCommandScene.new(BallSealsKIF.intl("Choose Seal"), commands, BallSealsKIF.intl("Choose a seal.")).main
+    icons = defs.map { |s| BallSealsKIF.bitmap_for(s[0]) }
+    idx = BallSealsCommandScene.new(BallSealsKIF.intl("Choose Seal"), commands, BallSealsKIF.intl("Choose a seal."), 0, nil, icons).main
     return nil if idx.nil?
     defs[idx][0]
   end
@@ -224,7 +263,8 @@ class BallSealsCapsuleEditorScene
     list = (@capsule[:placements] || [])
     return nil if list.empty?
     commands = list.each_with_index.map { |pl, i| "%d. %s" % [i + 1, BallSealsKIF.seal_name(pl[:seal])] }
-    idx = BallSealsCommandScene.new(prompt, commands, BallSealsKIF.intl("Choose a placed seal.")).main
+    icons = list.map { |pl| BallSealsKIF.bitmap_for(pl[:seal]) }
+    idx = BallSealsCommandScene.new(prompt, commands, BallSealsKIF.intl("Choose a placed seal."), 0, nil, icons).main
     return nil if idx.nil?
     idx
   end

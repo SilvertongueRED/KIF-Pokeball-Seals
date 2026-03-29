@@ -15,6 +15,64 @@ module BallSealsKIF
   ANIMATIONS_DIR = File.join(GRAPHICS_BASE, "Animations")
   GUI_DIR        = File.join(GRAPHICS_BASE, "GUI")
 
+  # ── Dynamic game root detection ───────────────────────────────────
+  # Tries multiple strategies to find the KIF game root directory:
+  # 1. Walk $LOAD_PATH looking for a parent that contains a Graphics/ folder
+  # 2. Traverse upward from __FILE__ looking for Graphics/BallSeals
+  # 3. Fall back to Dir.pwd as last resort
+  # Result is cached so detection only runs once.
+  def self.detect_game_root
+    return @game_root if defined?(@game_root) && @game_root
+
+    # Strategy 1: scan $LOAD_PATH entries for a parent containing Graphics/
+    # KIF/Essentials adds its script dirs to $LOAD_PATH; game root is typically
+    # 1-3 levels above those dirs (Scripts/ → Data/ → game root is common).
+    # We walk up 4 levels max — enough to reach game root without escaping it.
+    if defined?($LOAD_PATH)
+      $LOAD_PATH.each do |lp|
+        begin
+          candidate = File.expand_path(lp.to_s)
+          4.times do
+            if File.directory?(File.join(candidate, "Graphics"))
+              @game_root = candidate
+              return @game_root
+            end
+            parent = File.dirname(candidate)
+            break if parent == candidate
+            candidate = parent
+          end
+        rescue SystemCallError
+        end
+      end
+    end
+
+    # Strategy 2: traverse upward from this script file (__FILE__).
+    # BallSealsKIF/000_BallSeals_Core.rb typically lives inside the game tree,
+    # so walking up 8 levels is more than enough to reach any game root without
+    # escaping the filesystem root on deeply nested installations.
+    begin
+      candidate = File.expand_path(File.dirname(__FILE__))
+      8.times do
+        if File.directory?(File.join(candidate, GRAPHICS_BASE))
+          @game_root = candidate
+          return @game_root
+        end
+        if File.directory?(File.join(candidate, "Graphics"))
+          @game_root = candidate
+          return @game_root
+        end
+        parent = File.dirname(candidate)
+        break if parent == candidate
+        candidate = parent
+      end
+    rescue SystemCallError
+    end
+
+    # Strategy 3: Dir.pwd as last resort
+    @game_root = Dir.pwd rescue "."
+    @game_root
+  end
+
   # ── GUI image files (in GUI/ folder) ──────────────────────────────
   GUI_FILES = {
     :capsule_shape => "Pokeball.png",        # pokeball capsule overlay
@@ -200,13 +258,15 @@ module BallSealsKIF
     return nil if !path
     begin
       return Bitmap.new(path)
-    rescue
+    rescue => e
+      log("DBG: Bitmap.new(#{path}) failed: #{e.class}: #{e.message}") if $DEBUG
     end
     noext = strip_ext_for_rgss(path)
     return nil if noext == path
     begin
       return Bitmap.new(noext)
-    rescue
+    rescue => e
+      log("load_bitmap_with_fallback: could not load #{path} (#{e.class}: #{e.message})")
     end
     nil
   end
@@ -391,8 +451,11 @@ module BallSealsKIF
     filename = SEAL_ICON_FILES[sym]
     return nil if !filename
     rel = File.join(ICONS_DIR, filename)
-    abs = File.join(Dir.pwd, rel) rescue nil
-    return abs if abs && File.exist?(abs)
+    abs = File.join(detect_game_root, rel) rescue nil
+    if abs && File.exist?(abs)
+      log("DBG: icon_path resolved absolute: #{abs}") if $DEBUG
+      return abs
+    end
     strip_ext_for_rgss(rel)
   end
 
@@ -401,8 +464,11 @@ module BallSealsKIF
     filename = SEAL_ANIM_FILES[sym]
     return nil if !filename
     rel = File.join(ANIMATIONS_DIR, filename)
-    abs = File.join(Dir.pwd, rel) rescue nil
-    return abs if abs && File.exist?(abs)
+    abs = File.join(detect_game_root, rel) rescue nil
+    if abs && File.exist?(abs)
+      log("DBG: animation_path resolved absolute: #{abs}") if $DEBUG
+      return abs
+    end
     strip_ext_for_rgss(rel)
   end
 
@@ -410,8 +476,11 @@ module BallSealsKIF
     filename = GUI_FILES[key]
     return nil if !filename
     rel = File.join(GUI_DIR, filename)
-    abs = File.join(Dir.pwd, rel) rescue nil
-    return abs if abs && File.exist?(abs)
+    abs = File.join(detect_game_root, rel) rescue nil
+    if abs && File.exist?(abs)
+      log("DBG: gui_path resolved absolute: #{abs}") if $DEBUG
+      return abs
+    end
     strip_ext_for_rgss(rel)
   end
 
@@ -692,6 +761,20 @@ module BallSealsKIF
     ensure_global_data
     install_graphics_tick_hook
     log("=== #{MOD_NAME} #{MOD_VERSION} init ===")
+    root = detect_game_root
+    log("Game root detected: #{root}")
+    [
+      ["Icons",      File.join(root, ICONS_DIR)],
+      ["Animations", File.join(root, ANIMATIONS_DIR)],
+      ["GUI",        File.join(root, GUI_DIR)]
+    ].each do |label, dir|
+      if File.directory?(dir)
+        count = Dir.glob(File.join(dir, "*.png")).length rescue 0
+        log("  #{label} folder found (#{count} PNG files): #{dir}")
+      else
+        log("  #{label} folder NOT found at: #{dir}")
+      end
+    end
   rescue => e
     log("init ERROR: #{e.class}: #{e.message}")
   end
@@ -824,7 +907,9 @@ if defined?(GameData) && defined?(GameData::Item)
         item_data = self.try_get(item)
         if item_data && BallSealsKIF::SEAL_ICON_FILES.key?(item_data.id)
           icon_file = BallSealsKIF::SEAL_ICON_FILES[item_data.id]
-          path = File.join(BallSealsKIF::ICONS_DIR, icon_file)
+          rel  = File.join(BallSealsKIF::ICONS_DIR, icon_file)
+          abs  = File.join(BallSealsKIF.detect_game_root, rel) rescue nil
+          path = (abs && File.exist?(abs)) ? abs : rel
           return path if pbResolveBitmap(path)
         end
         ballseals_icon_original(item)

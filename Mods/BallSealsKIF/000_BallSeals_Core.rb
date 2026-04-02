@@ -265,21 +265,36 @@ module BallSealsKIF
 
   # Tries to load a Bitmap from path with its extension; if that fails,
   # retries with the extension stripped (for RGSS/MKXP compatibility).
-  # Returns the Bitmap on success, or nil if both attempts fail.
+  # If the given path is absolute, also attempts the relative equivalent
+  # (with and without extension) so that standard RGSS engines can resolve it.
+  # Returns the Bitmap on success, or nil if all attempts fail.
   def self.load_bitmap_with_fallback(path)
     return nil if !path
-    begin
-      return Bitmap.new(path)
-    rescue => e
-      log("DBG: Bitmap.new(#{path}) failed: #{e.class}: #{e.message}") if $DEBUG
-    end
+    # Build a list of candidate paths to try, in priority order.
+    candidates = [path]
     noext = strip_ext_for_rgss(path)
-    return nil if noext == path
-    begin
-      return Bitmap.new(noext)
-    rescue => e
-      log("load_bitmap_with_fallback: could not load #{path} (#{e.class}: #{e.message})")
+    candidates << noext if noext != path
+    # If path looks absolute, also try the relative equivalent so that RGSS
+    # (which resolves paths relative to the game root) can find the file.
+    root = detect_game_root rescue nil
+    if root
+      sep = File::SEPARATOR
+      prefix = root.end_with?(sep) ? root : "#{root}#{sep}"
+      if path.start_with?(prefix)
+        rel = path[prefix.length..]
+        candidates << rel unless candidates.include?(rel)
+        rel_noext = strip_ext_for_rgss(rel)
+        candidates << rel_noext unless candidates.include?(rel_noext)
+      end
     end
+    candidates.each do |c|
+      begin
+        return Bitmap.new(c)
+      rescue => e
+        log("DBG: Bitmap.new(#{c}) failed: #{e.class}: #{e.message}") if $DEBUG
+      end
+    end
+    log("load_bitmap_with_fallback: could not load #{path} after trying #{candidates.length} variants")
     nil
   end
 
@@ -464,11 +479,10 @@ module BallSealsKIF
     return nil if !filename
     rel = File.join(ICONS_DIR, filename)
     abs = File.join(detect_game_root, rel) rescue nil
-    if abs && File.exist?(abs)
-      log("DBG: icon_path resolved absolute: #{abs}") if $DEBUG
-      return abs
-    end
-    strip_ext_for_rgss(rel)
+    log("DBG: icon_path verified file exists: #{abs}") if $DEBUG && abs && File.exist?(abs)
+    # Always return relative path — RGSS Bitmap.new expects paths relative to
+    # the game root; load_bitmap_with_fallback will handle extension stripping.
+    rel
   end
 
   def self.animation_path(sym)
@@ -477,11 +491,8 @@ module BallSealsKIF
     return nil if !filename
     rel = File.join(ANIMATIONS_DIR, filename)
     abs = File.join(detect_game_root, rel) rescue nil
-    if abs && File.exist?(abs)
-      log("DBG: animation_path resolved absolute: #{abs}") if $DEBUG
-      return abs
-    end
-    strip_ext_for_rgss(rel)
+    log("DBG: animation_path verified file exists: #{abs}") if $DEBUG && abs && File.exist?(abs)
+    rel
   end
 
   def self.gui_path(key)
@@ -489,11 +500,8 @@ module BallSealsKIF
     return nil if !filename
     rel = File.join(GUI_DIR, filename)
     abs = File.join(detect_game_root, rel) rescue nil
-    if abs && File.exist?(abs)
-      log("DBG: gui_path resolved absolute: #{abs}") if $DEBUG
-      return abs
-    end
-    strip_ext_for_rgss(rel)
+    log("DBG: gui_path verified file exists: #{abs}") if $DEBUG && abs && File.exist?(abs)
+    rel
   end
 
   # ── Bitmap loading ────────────────────────────────────────────────
@@ -930,9 +938,11 @@ if defined?(GameData) && defined?(GameData::Item)
         if item_data && BallSealsKIF::SEAL_ICON_FILES.key?(item_data.id)
           icon_file = BallSealsKIF::SEAL_ICON_FILES[item_data.id]
           rel  = File.join(BallSealsKIF::ICONS_DIR, icon_file)
-          abs  = File.join(BallSealsKIF.detect_game_root, rel) rescue nil
-          path = (abs && File.exist?(abs)) ? abs : rel
-          return path if pbResolveBitmap(path)
+          # Use relative path — pbResolveBitmap and RGSS work with paths
+          # relative to the game root; absolute paths break on most engines.
+          return rel if pbResolveBitmap(rel)
+          rel_noext = BallSealsKIF.strip_ext_for_rgss(rel)
+          return rel_noext if pbResolveBitmap(rel_noext)
         end
         ballseals_icon_original(item)
       end

@@ -16,24 +16,58 @@ module BallSealsKIF
   GUI_DIR        = File.join(GRAPHICS_BASE, "GUI")
 
   # ── Dynamic game root detection ───────────────────────────────────
-  # Tries multiple strategies to find the KIF game root directory:
-  # 1. Walk $LOAD_PATH looking for a parent that contains a Graphics/ folder
-  # 2. Traverse upward from __FILE__ looking for Graphics/BallSeals
-  # 3. Fall back to Dir.pwd as last resort
+  # Tries multiple strategies to find the KIF game root directory.
+  # Strategies run in order of reliability; the first successful match wins:
+  # 1. Dir.pwd — RGSS sets the working directory to the game folder, so if
+  #    Graphics/BallSeals/ exists there it is almost certainly correct.
+  # 2. Traverse upward from __FILE__ looking for Graphics/BallSeals/ — the
+  #    script's own location relative to the game root is very reliable.
+  # 3. Walk $LOAD_PATH looking for a parent that contains Graphics/BallSeals/
+  #    (specific subfolder to avoid false matches from engine/plugin dirs).
+  # 4. Fall back to Dir.pwd unconditionally as a last resort.
   # Result is cached so detection only runs once.
   def self.detect_game_root
     return @game_root if defined?(@game_root) && @game_root
 
-    # Strategy 1: scan $LOAD_PATH entries for a parent containing Graphics/
+    # Strategy 1: Dir.pwd — RGSS sets the working directory to the game folder.
+    # Check it first because it is cheap and usually correct.
+    begin
+      pwd = Dir.pwd
+      if File.directory?(File.join(pwd, GRAPHICS_BASE))
+        @game_root = pwd
+        return @game_root
+      end
+    rescue SystemCallError
+    end
+
+    # Strategy 2: traverse upward from this script file (__FILE__).
+    # BallSealsKIF/000_BallSeals_Core.rb lives at Mods/BallSealsKIF/ inside the
+    # game tree, so walking up a few levels always reaches the game root.
+    begin
+      candidate = File.expand_path(File.dirname(__FILE__))
+      8.times do
+        if File.directory?(File.join(candidate, GRAPHICS_BASE))
+          @game_root = candidate
+          return @game_root
+        end
+        parent = File.dirname(candidate)
+        break if parent == candidate
+        candidate = parent
+      end
+    rescue SystemCallError
+    end
+
+    # Strategy 3: scan $LOAD_PATH entries for a parent containing Graphics/BallSeals/.
     # KIF/Essentials adds its script dirs to $LOAD_PATH; game root is typically
     # 1-3 levels above those dirs (Scripts/ → Data/ → game root is common).
-    # We walk up 4 levels max — enough to reach game root without escaping it.
+    # We require the specific Graphics/BallSeals/ subfolder to avoid false
+    # matches from engine or other plugin directories that have a Graphics/ folder.
     if defined?($LOAD_PATH)
       $LOAD_PATH.each do |lp|
         begin
           candidate = File.expand_path(lp.to_s)
           4.times do
-            if File.directory?(File.join(candidate, "Graphics"))
+            if File.directory?(File.join(candidate, GRAPHICS_BASE))
               @game_root = candidate
               return @game_root
             end
@@ -46,29 +80,7 @@ module BallSealsKIF
       end
     end
 
-    # Strategy 2: traverse upward from this script file (__FILE__).
-    # BallSealsKIF/000_BallSeals_Core.rb typically lives inside the game tree,
-    # so walking up 8 levels is more than enough to reach any game root without
-    # escaping the filesystem root on deeply nested installations.
-    begin
-      candidate = File.expand_path(File.dirname(__FILE__))
-      8.times do
-        if File.directory?(File.join(candidate, GRAPHICS_BASE))
-          @game_root = candidate
-          return @game_root
-        end
-        if File.directory?(File.join(candidate, "Graphics"))
-          @game_root = candidate
-          return @game_root
-        end
-        parent = File.dirname(candidate)
-        break if parent == candidate
-        candidate = parent
-      end
-    rescue SystemCallError
-    end
-
-    # Strategy 3: Dir.pwd as last resort
+    # Strategy 4: Dir.pwd unconditionally as last resort
     @game_root = Dir.pwd rescue "."
     @game_root
   end
@@ -490,11 +502,13 @@ module BallSealsKIF
   def self.bitmap_for(sym)
     sym = resolve_seal_sym(sym)
     return @bitmaps[sym] if @bitmaps[sym] && !@bitmaps[sym].disposed?
-    bmp = load_bitmap_with_fallback(icon_path(sym))
+    path = icon_path(sym)
+    bmp = load_bitmap_with_fallback(path)
     if bmp
       @bitmaps[sym] = bmp
       return @bitmaps[sym]
     end
+    log("WARN: bitmap_for(#{sym}) could not load custom icon from #{path.inspect}; using coded fallback. Check game root: #{detect_game_root}")
     style = seal_style(sym)
     size = style[3] || 6
     bmp = Bitmap.new(size, size)
@@ -510,11 +524,13 @@ module BallSealsKIF
     sym = resolve_seal_sym(sym)
     cache_key = :"anim_#{sym}"
     return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
-    bmp = load_bitmap_with_fallback(animation_path(sym))
+    path = animation_path(sym)
+    bmp = load_bitmap_with_fallback(path)
     if bmp
       @bitmaps[cache_key] = bmp
       return @bitmaps[cache_key]
     end
+    log("WARN: animation_bitmap_for(#{sym}) could not load custom animation from #{path.inspect}; falling back to icon bitmap. Check game root: #{detect_game_root}")
     bitmap_for(sym)
   end
 
@@ -522,9 +538,15 @@ module BallSealsKIF
   def self.gui_bitmap(key)
     cache_key = :"gui_#{key}"
     return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
-    bmp = load_bitmap_with_fallback(gui_path(key))
-    @bitmaps[cache_key] = bmp
-    bmp
+    path = gui_path(key)
+    bmp = load_bitmap_with_fallback(path)
+    if bmp
+      @bitmaps[cache_key] = bmp
+      return @bitmaps[cache_key]
+    end
+    log("WARN: gui_bitmap(#{key}) could not load custom graphic from #{path.inspect}; returning nil. Check game root: #{detect_game_root}")
+    @bitmaps[cache_key] = nil
+    nil
   end
 
   # ── Canvas drawing ────────────────────────────────────────────────

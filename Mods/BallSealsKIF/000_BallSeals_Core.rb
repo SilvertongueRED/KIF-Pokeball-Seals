@@ -769,15 +769,6 @@ module BallSealsKIF
     frame = (Graphics.frame_count rescue nil)
     return if frame && @last_tick_frame == frame
     @last_tick_frame = frame
-    begin
-      @menu_ensure_calls ||= 0
-      @menu_ensure_calls += 1
-      if @menu_ensure_calls > 3 && respond_to?(:ensure_menu_installed)
-        ensure_menu_installed
-      end
-    rescue => e
-      log("tick menu ensure ERROR: #{e.class}: #{e.message}")
-    end
     update_effects
   rescue => e
     log("tick ERROR: #{e.class}: #{e.message}")

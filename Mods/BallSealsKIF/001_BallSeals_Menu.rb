@@ -69,32 +69,6 @@ module BallSealsKIF
     end
   end
 
-  def self.install_pause_menu_via_menuhandlers
-    return false if !defined?(MenuHandlers)
-    return false if !MenuHandlers.respond_to?(:add)
-    begin
-      MenuHandlers.add(:pause_menu, :ball_seals_kif, {
-        "name"      => proc { next BallSealsKIF.ball_seals_label },
-        "order"     => 69,
-        "condition" => proc { next true },
-        "effect"    => proc { |menu|
-          begin
-            pbPlayDecisionSE if defined?(pbPlayDecisionSE)
-            menu.pbHideMenu if menu && menu.respond_to?(:pbHideMenu)
-          rescue
-          end
-          BallSealsKIF.open_hub_from_menu
-          next false
-        }
-      })
-      log("Pause menu entry installed via MenuHandlers")
-      true
-    rescue => e
-      log("install_pause_menu_via_menuhandlers ERROR: #{e.class}: #{e.message}")
-      false
-    end
-  end
-
   def self.insert_menu_entry(commands)
     return nil if !commands.is_a?(Array)
     return nil if commands.include?(BallSealsKIF.ball_seals_label)
@@ -108,28 +82,27 @@ module BallSealsKIF
     [cmds, insert_at]
   end
 
-  def self.pause_menu_scene_classes
+  def self.install_pause_menu_hook
+    # Only install once — guard against re-entry
+    return true if @pause_menu_hook_installed
+
     scene_classes = []
     scene_classes << PokemonPauseMenu_Scene if defined?(PokemonPauseMenu_Scene)
     scene_classes << PokemonPauseMenuScene  if defined?(PokemonPauseMenuScene)
     scene_classes << PauseMenu_Scene        if defined?(PauseMenu_Scene)
     scene_classes << PauseMenuScene         if defined?(PauseMenuScene)
-    scene_classes.compact.uniq
-  end
-
-  def self.install_pause_menu_hook(force = false)
-    pause_menu_scene_classes.each do |klass|
+    scene_classes.compact.uniq.each do |klass|
       next if !klass.method_defined?(:pbShowCommands)
-      next if klass.method_defined?(:__bskif_pbShowCommands) && !force
-      ali = "__bskif_pbShowCommands_late_#{Time.now.to_f.to_s.gsub('.', '_')}".to_sym
+      # Guard: only alias once
+      next if klass.method_defined?(:__bskif_pbShowCommands)
       klass.class_eval do
-        alias_method ali, :pbShowCommands
+        alias_method :__bskif_pbShowCommands, :pbShowCommands
         define_method(:pbShowCommands) do |commands, *args|
           begin
             packed = BallSealsKIF.insert_menu_entry(commands)
             if packed
               cmds, insert_at = packed
-              ret = send(ali, cmds, *args)
+              ret = __bskif_pbShowCommands(cmds, *args)
               if ret == insert_at
                 BallSealsKIF.open_hub_from_menu
                 return -1
@@ -140,40 +113,21 @@ module BallSealsKIF
               end
             end
           rescue => e
-            BallSealsKIF.log("pbShowCommands late injection ERROR: #{e.class}: #{e.message}")
+            BallSealsKIF.log("pbShowCommands hook ERROR: #{e.class}: #{e.message}")
           end
-          send(ali, commands, *args)
+          __bskif_pbShowCommands(commands, *args)
         end
       end
-      BallSealsKIF.log("Pause menu hook installed on #{klass}#{force ? ' (forced-late)' : ''}")
+      BallSealsKIF.log("Pause menu hook installed on #{klass}")
+      @pause_menu_hook_installed = true
       return true
     end
     false
   end
 
   def self.init_menu
-    @menu_initial_installed = false
-    @menu_late_installed = false
-    ok = install_pause_menu_via_menuhandlers
-    ok = install_pause_menu_hook(false) if !ok
-    @menu_initial_installed = ok
+    ok = install_pause_menu_hook
     log("init_menu complete: #{ok ? 'OK' : 'FAILED'}")
-  end
-
-  def self.ensure_menu_installed
-    @menu_install_attempts ||= 0
-    @menu_install_attempts += 1
-    return true if @menu_late_installed
-
-    ok = install_pause_menu_hook(true)
-    @menu_late_installed = ok
-
-    if ok
-      log("ensure_menu_installed forced hook OK (attempt #{@menu_install_attempts})")
-    elsif @menu_install_attempts <= 10
-      log("ensure_menu_installed pending (attempt #{@menu_install_attempts})")
-    end
-    ok
   end
 end
 

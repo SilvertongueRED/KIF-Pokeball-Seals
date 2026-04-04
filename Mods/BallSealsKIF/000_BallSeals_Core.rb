@@ -1,8 +1,23 @@
 # 000_BallSeals_Core.rb
+# ── Plugin registration ──────────────────────────────────────────
+# Register with the Essentials PluginManager so the mod is visible
+# to the engine's plugin system.  The guard avoids double-registration
+# when meta.txt has already been parsed by the PluginManager loader.
+if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
+   !PluginManager.installed?("Ball Seals")
+  PluginManager.register({
+    :name       => "Ball Seals",
+    :version    => "0.3.0",
+    :essentials => "20,20.1,21,21.1,22",
+    :link       => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
+    :credits    => ["SilvertongueRED"]
+  })
+end
+
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.2.0-image-integration"
+  MOD_VERSION = "0.3.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8

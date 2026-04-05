@@ -32,7 +32,6 @@ module BallSealsKIF
   # ── Asset folder paths (relative to game root) ───────────────────
   GRAPHICS_BASE  = File.join("Graphics", "BallSeals")
   ICONS_DIR      = File.join(GRAPHICS_BASE, "Icons")
-  ANIMATIONS_DIR = File.join(GRAPHICS_BASE, "Animations")
   GUI_DIR        = File.join(GRAPHICS_BASE, "GUI")
 
   # ── Dynamic game root detection ───────────────────────────────────
@@ -184,7 +183,7 @@ module BallSealsKIF
     [:FOAMY_D,     "Foamy Seal D",     Color.new(120,205,255,180),  7,  8,-0.03, 0.04]
   ]
 
-  # ── Icon file mapping (Icons/ folder) ────────────────────────────
+  # ── Icon file mapping (Icons/ folder — used for both GUI and battle) ─
   SEAL_ICON_FILES = {
     :HEART_A    => "Heart Seal A.png",    :HEART_B    => "Heart Seal B.png",
     :HEART_C    => "Heart Seal C.png",    :HEART_D    => "Heart Seal D.png",
@@ -213,36 +212,8 @@ module BallSealsKIF
     :FOAMY_C    => "Foamy Seal C.png",    :FOAMY_D    => "Foamy Seal D.png"
   }
 
-  # ── Animation file mapping (Animations/ folder) ──────────────────
-  # Seals in the same group share the same animation particle sprite;
-  # only the particle count varies between A/B/C… variants.
-  SEAL_ANIM_FILES = {
-    :HEART_A    => "Starburst Seal.png", :HEART_B    => "Starburst Seal.png",
-    :HEART_C    => "Starburst Seal.png", :HEART_D    => "Starburst Seal.png",
-    :HEART_E    => "Starburst Seal.png", :HEART_F    => "Starburst Seal.png",
-    :STAR_A     => "Starburst Seal.png", :STAR_B     => "Starburst Seal.png",
-    :STAR_C     => "Starburst Seal.png", :STAR_D     => "Starburst Seal.png",
-    :STAR_E     => "Starburst Seal.png", :STAR_F     => "Starburst Seal.png",
-    :LINE_A     => "Starburst Seal.png", :LINE_B     => "Starburst Seal.png",
-    :LINE_C     => "Starburst Seal.png", :LINE_D     => "Starburst Seal.png",
-    :SMOKE_A    => "Bubble Seal.png",    :SMOKE_B    => "Bubble Seal.png",
-    :SMOKE_C    => "Bubble Seal.png",    :SMOKE_D    => "Bubble Seal.png",
-    :SONG_A     => "Starburst Seal.png", :SONG_B     => "Starburst Seal.png",
-    :SONG_C     => "Starburst Seal.png", :SONG_D     => "Starburst Seal.png",
-    :SONG_E     => "Starburst Seal.png", :SONG_F     => "Starburst Seal.png",
-    :SONG_G     => "Starburst Seal.png",
-    :FIRE_A     => "Starburst Seal.png", :FIRE_B     => "Starburst Seal.png",
-    :FIRE_C     => "Starburst Seal.png", :FIRE_D     => "Starburst Seal.png",
-    :PARTY_A    => "Starburst Seal.png", :PARTY_B    => "Starburst Seal.png",
-    :PARTY_C    => "Starburst Seal.png", :PARTY_D    => "Starburst Seal.png",
-    :FLORA_A    => "Water Drop Seal.png", :FLORA_B    => "Water Drop Seal.png",
-    :FLORA_C    => "Water Drop Seal.png", :FLORA_D    => "Water Drop Seal.png",
-    :FLORA_E    => "Water Drop Seal.png", :FLORA_F    => "Water Drop Seal.png",
-    :ELECTRIC_A => "Starburst Seal.png", :ELECTRIC_B => "Starburst Seal.png",
-    :ELECTRIC_C => "Starburst Seal.png", :ELECTRIC_D => "Starburst Seal.png",
-    :FOAMY_A    => "Bubble Seal.png",    :FOAMY_B    => "Bubble Seal.png",
-    :FOAMY_C    => "Bubble Seal.png",    :FOAMY_D    => "Bubble Seal.png"
-  }
+  # NOTE: The Animations/ folder has been merged into Icons/.  Battle
+  # burst particles now use the same images shown in the GUI/editor.
 
   # ── Legacy seal symbol mapping (backward compat with older saves) ─
   LEGACY_SEAL_MAP = {
@@ -505,14 +476,10 @@ module BallSealsKIF
     rel
   end
 
+  # After the Icons/Animations merge, animation_path is an alias for
+  # icon_path — both GUI and battle use the same Icons/ images.
   def self.animation_path(sym)
-    sym = resolve_seal_sym(sym)
-    filename = SEAL_ANIM_FILES[sym]
-    return nil if !filename
-    rel = File.join(ANIMATIONS_DIR, filename)
-    abs = File.join(detect_game_root, rel) rescue nil
-    log("DBG: animation_path verified file exists: #{abs}") if $DEBUG && abs && File.exist?(abs)
-    rel
+    icon_path(sym)
   end
 
   def self.gui_path(key)
@@ -526,7 +493,7 @@ module BallSealsKIF
 
   # ── Bitmap loading ────────────────────────────────────────────────
 
-  # Returns icon bitmap for menu/editor display (Icons/ folder).
+  # Returns icon bitmap for menu/editor display and battle particles (Icons/ folder).
   def self.bitmap_for(sym)
     sym = resolve_seal_sym(sym)
     return @bitmaps[sym] if @bitmaps[sym] && !@bitmaps[sym].disposed?
@@ -546,19 +513,10 @@ module BallSealsKIF
     bmp
   end
 
-  # Returns animation particle bitmap for pokeball burst (Animations/).
-  # Falls back to the icon bitmap if no animation file is found.
+  # Returns the particle bitmap for pokeball burst (Icons/ folder).
+  # After the Icons/Animations merge, this delegates to bitmap_for —
+  # the same image shown in the editor is used in battle.
   def self.animation_bitmap_for(sym)
-    sym = resolve_seal_sym(sym)
-    cache_key = :"anim_#{sym}"
-    return @bitmaps[cache_key] if @bitmaps[cache_key] && !@bitmaps[cache_key].disposed?
-    path = animation_path(sym)
-    bmp = load_bitmap_with_fallback(path)
-    if bmp
-      @bitmaps[cache_key] = bmp
-      return @bitmaps[cache_key]
-    end
-    log("WARN: animation_bitmap_for(#{sym}) could not load custom animation from #{path.inspect}; falling back to icon bitmap. Check game root: #{detect_game_root}")
     bitmap_for(sym)
   end
 
@@ -807,7 +765,6 @@ module BallSealsKIF
     log("Game root detected: #{root}")
     [
       ["Icons",      File.join(root, ICONS_DIR)],
-      ["Animations", File.join(root, ANIMATIONS_DIR)],
       ["GUI",        File.join(root, GUI_DIR)]
     ].each do |label, dir|
       if File.directory?(dir)

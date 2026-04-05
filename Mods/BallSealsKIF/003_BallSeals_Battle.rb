@@ -18,25 +18,48 @@ module BallSealsKIF
       next if battle && battle.respond_to?(:opposes?) && battle.opposes?(idxBattler)
       cap = capsule_for_pokemon(pkmn)
       next if !cap || !cap[:placements] || cap[:placements].empty?
-      sprite = sprites["pokemon_#{idxBattler}"] rescue nil if sprites
-      if sprite && !sprite.disposed?
-        x = sprite.x
-        # sprite.y is at the feet/ground level; the ball-open light
-        # rays appear near the vertical centre of the battler graphic.
-        # Move up by half the bitmap height (or a sensible fallback).
-        bmp_h = (sprite.bitmap ? sprite.bitmap.height : 0) rescue 0
-        y = sprite.y - (bmp_h > 0 ? bmp_h / 2 : 64)
-      else
-        # Reasonable default when sprite is unavailable – roughly
-        # where the player-side battler's centre would be.
-        x = Graphics.width / 4
-        y = (Graphics.height * 3) / 5
-      end
+      x, y = player_battler_burst_pos(scene, sprites, idxBattler)
       start_capsule_burst_on_viewport(vp, x, y, cap)
       log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y})")
     end
   rescue => e
     log("trigger_vanilla_burst ERROR: #{e.class}: #{e.message}")
+  end
+
+  # Determine the best screen position for a player-side battler's
+  # ball-open burst.  The hook fires BEFORE pbSendOutBattlers, so the
+  # sprite may still be at the RGSS default (0,0) or off-screen.
+  # We try several sources and fall back to a safe default.
+  def self.player_battler_burst_pos(scene, sprites, idxBattler)
+    # 1) Battler sprite — only trust it when already on-screen.
+    if sprites
+      sprite = sprites["pokemon_#{idxBattler}"] rescue nil
+      if sprite && !sprite.disposed? && sprite.x > 0 && sprite.y > 0
+        bmp_h = (sprite.bitmap ? sprite.bitmap.height : 0) rescue 0
+        sy = sprite.y - (bmp_h > 0 ? bmp_h / 2 : 64)
+        if sy > 0 && sprite.x < Graphics.width && sy < Graphics.height
+          return [sprite.x, sy]
+        end
+      end
+    end
+    # 2) Scene helper (Essentials v20+ pbBattlerPosition).
+    begin
+      if scene.respond_to?(:pbBattlerPosition)
+        pos = scene.pbBattlerPosition(idxBattler)
+        if pos.is_a?(Array) && pos.length >= 2 && pos[0].to_i > 0 && pos[1].to_i > 0
+          return [pos[0].to_i, pos[1].to_i - 64]
+        end
+      end
+    rescue => e
+      BallSealsKIF.log("player_battler_burst_pos pbBattlerPosition ERROR: #{e.class}: #{e.message}")
+    end
+    # 3) Fallback – approximate centre of the player battler area.
+    #    Slot 0 sits at ~1/4 screen width; slot 1 (doubles) shifts right.
+    #    Essentials uses even indices for player-side battlers (0, 2, …),
+    #    so dividing by 2 gives the slot number within the player's team.
+    slot = ((idxBattler || 0) / 2) rescue 0
+    dx   = slot * (Graphics.width / 8)
+    [Graphics.width / 4 + dx, (Graphics.height * 3) / 4]
   end
 
   # Resolves the battle scene class across Essentials versions.

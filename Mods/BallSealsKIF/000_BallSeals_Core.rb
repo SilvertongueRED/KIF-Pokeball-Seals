@@ -444,8 +444,8 @@ module BallSealsKIF
         ang = (i.to_f / [1, pkmn.ball_seals.length].max) * Math::PI * 2.0
         placements << {
           :seal => resolve_seal_sym(seal),
-          :x => 0.5 + Math.cos(ang) * 0.28,
-          :y => 0.5 + Math.sin(ang) * 0.22
+          :x => 0.5 + Math.cos(ang) * 0.41,
+          :y => 0.5 + Math.sin(ang) * 0.32
         }
       end
       return { :name => "Legacy", :placements => placements }
@@ -619,8 +619,8 @@ module BallSealsKIF
       count = style[4] || 10
       grav  = style[5] || 0.12
       spin  = style[6] || 0.10
-      ox = ((pl[:x].to_f - 0.5) * 180).to_i
-      oy = ((pl[:y].to_f - 0.5) * 140).to_i
+      ox = ((pl[:x].to_f - 0.5) * 261).to_i
+      oy = ((pl[:y].to_f - 0.5) * 203).to_i
       [1, count / 2].max.times do
         sp = Sprite.new(viewport)
         sp.bitmap = bmp

@@ -1,8 +1,41 @@
 # 003_BallSeals_Battle.rb
 module BallSealsKIF
+  # ── Vanilla/Classic battle burst helper ────────────────────────────
+  # Fires seal capsule particle bursts on the battle viewport after the
+  # standard send-out animation has finished.  Works for any scene that
+  # is NOT PokeBattle_SceneEBDX (Classic+, vanilla Type 2, etc.).
+  def self.trigger_vanilla_burst(scene, send_outs)
+    return if !send_outs || send_outs.empty?
+    battle  = scene.instance_variable_get(:@battle)  rescue nil
+    sprites = scene.instance_variable_get(:@sprites) rescue nil
+    vp      = resolve_test_viewport(scene)
+    return if !vp
+    send_outs.each do |pair|
+      idxBattler = pair[0]
+      pkmn       = pair[1]
+      next if battle && battle.respond_to?(:opposes?) && battle.opposes?(idxBattler)
+      cap = capsule_for_pokemon(pkmn)
+      next if !cap || !cap[:placements] || cap[:placements].empty?
+      sprite = sprites["pokemon_#{idxBattler}"] rescue nil if sprites
+      if sprite && !sprite.disposed?
+        x = sprite.x
+        y = sprite.y
+      else
+        x = Graphics.width / 2
+        y = Graphics.height / 2
+      end
+      start_capsule_burst_on_viewport(vp, x, y, cap)
+      log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y})")
+    end
+  rescue => e
+    log("trigger_vanilla_burst ERROR: #{e.class}: #{e.message}")
+  end
+
   def self.install_sendout_hooks
     return if @sendout_hooks_installed
     patched = []
+
+    # ── EBDX send-out hook ────────────────────────────────────────────
     if defined?(PokeBattle_SceneEBDX) &&
        PokeBattle_SceneEBDX.method_defined?(:playerBattlerSendOut) &&
        !PokeBattle_SceneEBDX.method_defined?(:__bskif_playerBattlerSendOut)
@@ -32,9 +65,64 @@ module BallSealsKIF
       end
       patched << "PokeBattle_SceneEBDX#playerBattlerSendOut"
     end
+
+    # ── Standard / Vanilla / Classic+ PokeBattle_Scene hooks ──────────
+    # Triggers seal particle bursts after the normal send-out animation
+    # completes.  Skipped when the scene is a PokeBattle_SceneEBDX
+    # instance so the EBDX-specific hooks above handle it instead.
+    if defined?(PokeBattle_Scene)
+      vanilla_hooked = false
+
+      # Batch send-out (preferred): pbSendOutBattlers(sendOuts, startBattle)
+      if !vanilla_hooked &&
+         PokeBattle_Scene.method_defined?(:pbSendOutBattlers) &&
+         !PokeBattle_Scene.method_defined?(:__bskif_pbSendOutBattlers)
+        PokeBattle_Scene.class_eval do
+          alias __bskif_pbSendOutBattlers pbSendOutBattlers
+          def pbSendOutBattlers(sendOuts, startBattle = false)
+            ret = __bskif_pbSendOutBattlers(sendOuts, startBattle)
+            if defined?(PokeBattle_SceneEBDX) && self.is_a?(PokeBattle_SceneEBDX)
+              return ret
+            end
+            begin
+              BallSealsKIF.trigger_vanilla_burst(self, sendOuts)
+            rescue => e
+              BallSealsKIF.log("pbSendOutBattlers burst ERROR: #{e.class}: #{e.message}")
+            end
+            return ret
+          end
+        end
+        vanilla_hooked = true
+        patched << "PokeBattle_Scene#pbSendOutBattlers"
+      end
+
+      # Single send-out fallback: pbSendOut(idxBattler, pkmn)
+      if !vanilla_hooked &&
+         PokeBattle_Scene.method_defined?(:pbSendOut) &&
+         !PokeBattle_Scene.method_defined?(:__bskif_pbSendOut)
+        PokeBattle_Scene.class_eval do
+          alias __bskif_pbSendOut pbSendOut
+          def pbSendOut(idxBattler, pkmn)
+            ret = __bskif_pbSendOut(idxBattler, pkmn)
+            if defined?(PokeBattle_SceneEBDX) && self.is_a?(PokeBattle_SceneEBDX)
+              return ret
+            end
+            begin
+              BallSealsKIF.trigger_vanilla_burst(self, [[idxBattler, pkmn]])
+            rescue => e
+              BallSealsKIF.log("pbSendOut burst ERROR: #{e.class}: #{e.message}")
+            end
+            return ret
+          end
+        end
+        vanilla_hooked = true
+        patched << "PokeBattle_Scene#pbSendOut"
+      end
+    end
+
     if patched.length > 0
       @sendout_hooks_installed = true
-      log("Installed EBDX send-out hooks on: #{patched.join(', ')}")
+      log("Installed send-out hooks on: #{patched.join(', ')}")
     end
   rescue => e
     log("install_sendout_hooks ERROR: #{e.class}: #{e.message}")

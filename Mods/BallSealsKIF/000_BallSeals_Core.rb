@@ -619,15 +619,15 @@ module BallSealsKIF
       count = style[4] || 10
       grav  = style[5] || 0.12
       spin  = style[6] || 0.10
-      ox = ((pl[:x].to_f - 0.5) * 72).to_i
-      oy = ((pl[:y].to_f - 0.5) * 52).to_i
+      ox = ((pl[:x].to_f - 0.5) * 180).to_i
+      oy = ((pl[:y].to_f - 0.5) * 140).to_i
       [1, count / 2].max.times do
         sp = Sprite.new(viewport)
         sp.bitmap = bmp
         sp.ox = bmp.width / 2
         sp.oy = bmp.height / 2
-        sp.x = x + ox + rand(-8..8)
-        sp.y = y + oy + rand(-6..6)
+        sp.x = x + ox + rand(-16..16)
+        sp.y = y + oy + rand(-12..12)
         sp.z = 999999
         sp.opacity = 255
         sp.zoom_x = FX_SCALE

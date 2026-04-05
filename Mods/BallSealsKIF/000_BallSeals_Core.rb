@@ -5,13 +5,18 @@
 # when meta.txt has already been parsed by the PluginManager loader.
 if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
    !PluginManager.installed?("Ball Seals")
-  PluginManager.register({
-    :name       => "Ball Seals",
-    :version    => "0.3.0",
-    :essentials => "20,20.1,21,21.1,22",
-    :link       => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
-    :credits    => ["SilvertongueRED"]
-  })
+  begin
+    PluginManager.register({
+      :name    => "Ball Seals",
+      :version => "0.3.0",
+      :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
+      :credits => ["SilvertongueRED"]
+    })
+  rescue ArgumentError => e
+    # KIF PluginManager may differ from standard Essentials;
+    # meta.txt handles registration in that case.
+    raise unless e.message.include?("comparison")
+  end
 end
 
 $BallSealsKIFLoaded ||= false

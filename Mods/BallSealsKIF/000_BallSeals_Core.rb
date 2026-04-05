@@ -8,7 +8,7 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
   begin
     PluginManager.register({
       :name    => "Ball Seals",
-      :version => "0.3.0",
+      :version => "0.3.1",
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
@@ -22,7 +22,7 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.3.0"
+  MOD_VERSION = "0.3.1"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8
@@ -657,6 +657,7 @@ module BallSealsKIF
       sym   = style[0]
       # Use animation sprite for the burst particles
       bmp   = animation_bitmap_for(sym)
+      next if !bmp || (bmp.respond_to?(:disposed?) && bmp.disposed?)
       count = style[4] || 10
       grav  = style[5] || 0.12
       spin  = style[6] || 0.10

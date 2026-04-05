@@ -39,6 +39,16 @@ module BallSealsKIF
     log("trigger_vanilla_burst ERROR: #{e.class}: #{e.message}")
   end
 
+  # Resolves the battle scene class across Essentials versions.
+  # v19 and earlier: PokeBattle_Scene
+  # v20 (compat alias): PokeBattle_Scene = Battle::Scene
+  # v21+: Battle::Scene only (PokeBattle_Scene removed)
+  def self.resolve_scene_class
+    return PokeBattle_Scene if defined?(PokeBattle_Scene)
+    return Battle::Scene    if defined?(Battle) && defined?(Battle::Scene)
+    nil
+  end
+
   def self.install_sendout_hooks
     return if @sendout_hooks_installed
     patched = []
@@ -74,18 +84,23 @@ module BallSealsKIF
       patched << "PokeBattle_SceneEBDX#playerBattlerSendOut"
     end
 
-    # ── Standard / Vanilla / Classic+ PokeBattle_Scene hooks ──────────
-    # Triggers seal particle bursts at the START of the send-out so
-    # they play in sync with the pokéball opening.  Skipped when the
-    # scene is a PokeBattle_SceneEBDX instance (EBDX hooks handle it).
-    if defined?(PokeBattle_Scene)
+    # ── Standard / Vanilla / Classic+ scene hooks ─────────────────────
+    # Resolves the scene class dynamically so we hook the correct class
+    # across Essentials versions (PokeBattle_Scene in v19/v20,
+    # Battle::Scene in v21+).  Triggers seal particle bursts at the
+    # START of the send-out so they play in sync with the pokéball
+    # opening.  Skipped when the scene is a PokeBattle_SceneEBDX
+    # instance (EBDX hooks handle it).
+    scene_klass = resolve_scene_class
+    if scene_klass
       vanilla_hooked = false
+      klass_name = scene_klass.name || scene_klass.to_s
 
       # Batch send-out (preferred): pbSendOutBattlers(sendOuts, startBattle)
       if !vanilla_hooked &&
-         PokeBattle_Scene.method_defined?(:pbSendOutBattlers) &&
-         !PokeBattle_Scene.method_defined?(:__bskif_pbSendOutBattlers)
-        PokeBattle_Scene.class_eval do
+         scene_klass.method_defined?(:pbSendOutBattlers) &&
+         !scene_klass.method_defined?(:__bskif_pbSendOutBattlers)
+        scene_klass.class_eval do
           alias __bskif_pbSendOutBattlers pbSendOutBattlers
           def pbSendOutBattlers(sendOuts, startBattle = false)
             # Trigger seal burst BEFORE the send-out animation so that
@@ -101,14 +116,14 @@ module BallSealsKIF
           end
         end
         vanilla_hooked = true
-        patched << "PokeBattle_Scene#pbSendOutBattlers"
+        patched << "#{klass_name}#pbSendOutBattlers"
       end
 
       # Single send-out fallback: pbSendOut(idxBattler, pkmn)
       if !vanilla_hooked &&
-         PokeBattle_Scene.method_defined?(:pbSendOut) &&
-         !PokeBattle_Scene.method_defined?(:__bskif_pbSendOut)
-        PokeBattle_Scene.class_eval do
+         scene_klass.method_defined?(:pbSendOut) &&
+         !scene_klass.method_defined?(:__bskif_pbSendOut)
+        scene_klass.class_eval do
           alias __bskif_pbSendOut pbSendOut
           def pbSendOut(idxBattler, pkmn)
             # Trigger seal burst BEFORE the send-out animation.
@@ -123,7 +138,7 @@ module BallSealsKIF
           end
         end
         vanilla_hooked = true
-        patched << "PokeBattle_Scene#pbSendOut"
+        patched << "#{klass_name}#pbSendOut"
       end
     end
 

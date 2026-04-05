@@ -12,9 +12,10 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
-  rescue ArgumentError
+  rescue ArgumentError => e
     # KIF PluginManager may differ from standard Essentials;
     # meta.txt handles registration in that case.
+    raise unless e.message.include?("comparison")
   end
 end
 

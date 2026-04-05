@@ -1,9 +1,11 @@
 # 003_BallSeals_Battle.rb
 module BallSealsKIF
   # ── Vanilla/Classic battle burst helper ────────────────────────────
-  # Fires seal capsule particle bursts on the battle viewport after the
-  # standard send-out animation has finished.  Works for any scene that
-  # is NOT PokeBattle_SceneEBDX (Classic+, vanilla Type 2, etc.).
+  # Fires seal capsule particle bursts on the battle viewport at the
+  # same position the normal ball-open light rays appear.  Works for
+  # any scene that is NOT PokeBattle_SceneEBDX (Classic+, vanilla
+  # Type 2, etc.).  Called BEFORE the send-out animation so the
+  # particles play in parallel with the pokéball opening.
   def self.trigger_vanilla_burst(scene, send_outs)
     return if !send_outs || send_outs.empty?
     battle  = scene.instance_variable_get(:@battle)  rescue nil
@@ -19,10 +21,16 @@ module BallSealsKIF
       sprite = sprites["pokemon_#{idxBattler}"] rescue nil if sprites
       if sprite && !sprite.disposed?
         x = sprite.x
-        y = sprite.y
+        # sprite.y is at the feet/ground level; the ball-open light
+        # rays appear near the vertical centre of the battler graphic.
+        # Move up by half the bitmap height (or a sensible fallback).
+        bmp_h = (sprite.bitmap ? sprite.bitmap.height : 0) rescue 0
+        y = sprite.y - (bmp_h > 0 ? bmp_h / 2 : 64)
       else
-        x = Graphics.width / 2
-        y = Graphics.height / 2
+        # Reasonable default when sprite is unavailable – roughly
+        # where the player-side battler's centre would be.
+        x = Graphics.width / 4
+        y = (Graphics.height * 3) / 5
       end
       start_capsule_burst_on_viewport(vp, x, y, cap)
       log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y})")
@@ -67,9 +75,9 @@ module BallSealsKIF
     end
 
     # ── Standard / Vanilla / Classic+ PokeBattle_Scene hooks ──────────
-    # Triggers seal particle bursts after the normal send-out animation
-    # completes.  Skipped when the scene is a PokeBattle_SceneEBDX
-    # instance so the EBDX-specific hooks above handle it instead.
+    # Triggers seal particle bursts at the START of the send-out so
+    # they play in sync with the pokéball opening.  Skipped when the
+    # scene is a PokeBattle_SceneEBDX instance (EBDX hooks handle it).
     if defined?(PokeBattle_Scene)
       vanilla_hooked = false
 
@@ -80,16 +88,16 @@ module BallSealsKIF
         PokeBattle_Scene.class_eval do
           alias __bskif_pbSendOutBattlers pbSendOutBattlers
           def pbSendOutBattlers(sendOuts, startBattle = false)
-            ret = __bskif_pbSendOutBattlers(sendOuts, startBattle)
-            if defined?(PokeBattle_SceneEBDX) && self.is_a?(PokeBattle_SceneEBDX)
-              return ret
+            # Trigger seal burst BEFORE the send-out animation so that
+            # particles play in sync with the pokéball opening, not after.
+            if !(defined?(PokeBattle_SceneEBDX) && self.is_a?(PokeBattle_SceneEBDX))
+              begin
+                BallSealsKIF.trigger_vanilla_burst(self, sendOuts)
+              rescue => e
+                BallSealsKIF.log("pbSendOutBattlers burst ERROR: #{e.class}: #{e.message}")
+              end
             end
-            begin
-              BallSealsKIF.trigger_vanilla_burst(self, sendOuts)
-            rescue => e
-              BallSealsKIF.log("pbSendOutBattlers burst ERROR: #{e.class}: #{e.message}")
-            end
-            return ret
+            return __bskif_pbSendOutBattlers(sendOuts, startBattle)
           end
         end
         vanilla_hooked = true
@@ -103,16 +111,15 @@ module BallSealsKIF
         PokeBattle_Scene.class_eval do
           alias __bskif_pbSendOut pbSendOut
           def pbSendOut(idxBattler, pkmn)
-            ret = __bskif_pbSendOut(idxBattler, pkmn)
-            if defined?(PokeBattle_SceneEBDX) && self.is_a?(PokeBattle_SceneEBDX)
-              return ret
+            # Trigger seal burst BEFORE the send-out animation.
+            if !(defined?(PokeBattle_SceneEBDX) && self.is_a?(PokeBattle_SceneEBDX))
+              begin
+                BallSealsKIF.trigger_vanilla_burst(self, [[idxBattler, pkmn]])
+              rescue => e
+                BallSealsKIF.log("pbSendOut burst ERROR: #{e.class}: #{e.message}")
+              end
             end
-            begin
-              BallSealsKIF.trigger_vanilla_burst(self, [[idxBattler, pkmn]])
-            rescue => e
-              BallSealsKIF.log("pbSendOut burst ERROR: #{e.class}: #{e.message}")
-            end
-            return ret
+            return __bskif_pbSendOut(idxBattler, pkmn)
           end
         end
         vanilla_hooked = true

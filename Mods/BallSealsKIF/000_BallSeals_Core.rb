@@ -8,7 +8,7 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
   begin
     PluginManager.register({
       :name    => "Ball Seals",
-      :version => "0.3.1",
+      :version => "0.3.2",
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
@@ -22,7 +22,7 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.3.1"
+  MOD_VERSION = "0.3.2"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8

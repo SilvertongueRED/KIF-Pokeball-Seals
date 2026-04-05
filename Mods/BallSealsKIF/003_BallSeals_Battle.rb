@@ -207,7 +207,7 @@ module BallSealsKIF
           @disposed = false
           @viewport = viewport
           BallSealsKIF.log("DBG: Replacing vanilla EBBallBurst with capsule burst at (#{x},#{y})")
-          # Uses animation_bitmap_for internally for pokeball opening particles
+          # Uses the seal icon images for pokeball opening particles
           BallSealsKIF.start_capsule_burst_on_viewport(viewport, x, y, cap)
           return
         end

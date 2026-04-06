@@ -634,8 +634,8 @@ module BallSealsKIF
         sp.zoom_y = FX_SCALE
         vx = rand(-26..26) / 10.0
         vy = rand(-41..-9) / 10.0
-        rot = rand(360)
-        vr  = (rand(-10..10) / 10.0) + spin
+        rot = 0
+        vr  = 0
         particles << [sp, vx, vy, grav, rot, vr]
       end
     end

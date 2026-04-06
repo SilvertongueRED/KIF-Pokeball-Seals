@@ -610,7 +610,10 @@ module BallSealsKIF
     return if !cap || !cap[:placements] || cap[:placements].empty?
     return if !viewport || (viewport.respond_to?(:disposed?) && viewport.disposed?)
     particles = []
-    cap[:placements].each do |pl|
+    # Sort placements by x-position so the left-to-right GUI arrangement
+    # is preserved as the display/animation order during battle.
+    sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
+    sorted.each do |pl|
       style = seal_style(pl[:seal])
       sym   = style[0]
       # Use animation sprite for the burst particles

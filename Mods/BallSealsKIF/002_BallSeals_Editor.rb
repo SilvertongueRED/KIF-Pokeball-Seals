@@ -72,7 +72,7 @@ class BallSealsPlaceScene
     seal_bmp = BallSealsKIF.bitmap_for(@seal_sym)
     if seal_bmp
       @sprites["seal_icon"].bitmap = seal_bmp
-      @sprites["seal_icon"].x = 296
+      @sprites["seal_icon"].x = 296 + (Graphics.width * 0.03).to_i
       @sprites["seal_icon"].y = 90
       @sprites["seal_icon"].zoom_x = 3.0
       @sprites["seal_icon"].zoom_y = 3.0

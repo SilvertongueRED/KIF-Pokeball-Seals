@@ -619,8 +619,8 @@ module BallSealsKIF
       count = style[4] || 10
       grav  = style[5] || 0.12
       spin  = style[6] || 0.10
-      ox = ((pl[:x].to_f - 0.5) * 378).to_i
-      oy = ((pl[:y].to_f - 0.5) * 294).to_i
+      ox = ((pl[:x].to_f - 0.5) * 393).to_i
+      oy = ((pl[:y].to_f - 0.5) * 306).to_i
       [1, count / 2].max.times do
         sp = Sprite.new(viewport)
         sp.bitmap = bmp
@@ -634,8 +634,8 @@ module BallSealsKIF
         sp.zoom_y = FX_SCALE
         vx = rand(-26..26) / 10.0
         vy = rand(-41..-9) / 10.0
-        rot = rand(360)
-        vr  = (rand(-10..10) / 10.0) + spin
+        rot = 0
+        vr  = 0
         particles << [sp, vx, vy, grav, rot, vr]
       end
     end

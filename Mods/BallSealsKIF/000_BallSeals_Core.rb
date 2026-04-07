@@ -683,24 +683,21 @@ module BallSealsKIF
       spin  = style[6] || 0.10
       ox = ((pl[:x].to_f - 0.5) * 393).to_i
       oy = ((pl[:y].to_f - 0.5) * 306).to_i
-      particles = []
-      1.times do
-        sp = Sprite.new(viewport)
-        sp.bitmap = bmp
-        sp.ox = bmp.width / 2
-        sp.oy = bmp.height / 2
-        sp.x = x + ox + rand(-23..23)
-        sp.y = y + oy + rand(-17..17)
-        sp.z = 999999
-        sp.opacity = 0
-        sp.zoom_x = FX_SCALE
-        sp.zoom_y = FX_SCALE
-        vx = rand(-26..26) / 10.0
-        vy = rand(-41..-9) / 10.0
-        rot = 0
-        vr  = 0
-        particles << [sp, vx, vy, grav, rot, vr]
-      end
+      sp = Sprite.new(viewport)
+      sp.bitmap = bmp
+      sp.ox = bmp.width / 2
+      sp.oy = bmp.height / 2
+      sp.x = x + ox + rand(-23..23)
+      sp.y = y + oy + rand(-17..17)
+      sp.z = 999999
+      sp.opacity = 0
+      sp.zoom_x = FX_SCALE
+      sp.zoom_y = FX_SCALE
+      vx = rand(-26..26) / 10.0
+      vy = rand(-41..-9) / 10.0
+      rot = 0
+      vr  = 0
+      particles = [[sp, vx, vy, grav, rot, vr]]
       delay = seal_idx * stagger_frames
       @active_fx << { :vp => viewport, :frames => 32, :delay => delay,
                       :started => (delay == 0), :particles => particles }

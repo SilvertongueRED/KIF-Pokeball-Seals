@@ -347,7 +347,23 @@ module BallSealsKIF
   end
 
   def self.all_seal_defs
-    SEAL_DEFS + (@dynamic_seal_defs || [])
+    combined = SEAL_DEFS + (@dynamic_seal_defs || [])
+    regular = []
+    letters = []
+    punctuation = []
+    combined.each do |s|
+      name = s[1].to_s
+      if name =~ /\A[A-Za-z] Seal\z/
+        letters << s
+      elsif name =~ /Exclamation Mark Seal|Question Mark Seal/i
+        punctuation << s
+      else
+        regular << s
+      end
+    end
+    regular.sort_by { |s| s[1].downcase } +
+      letters.sort_by { |s| s[1].downcase } +
+      punctuation.sort_by { |s| s[1].downcase }
   end
 
   def self.all_seal_icon_files
@@ -668,7 +684,7 @@ module BallSealsKIF
       ox = ((pl[:x].to_f - 0.5) * 393).to_i
       oy = ((pl[:y].to_f - 0.5) * 306).to_i
       particles = []
-      [1, count / 2].max.times do
+      1.times do
         sp = Sprite.new(viewport)
         sp.bitmap = bmp
         sp.ox = bmp.width / 2

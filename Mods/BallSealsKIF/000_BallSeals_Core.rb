@@ -323,7 +323,10 @@ module BallSealsKIF
     @dynamic_seal_defs = []
     @dynamic_seal_icon_files = {}
     root = detect_game_root rescue nil
-    return if !root
+    if !root
+      log("scan_icons_folder: could not detect game root")
+      return
+    end
     icons_abs = File.join(root, ICONS_DIR)
     return if !File.directory?(icons_abs)
     existing_filenames = SEAL_ICON_FILES.values.map { |f| f.downcase }
@@ -332,6 +335,7 @@ module BallSealsKIF
       next if existing_filenames.include?(filename.downcase)
       name = filename.sub(/\.png$/i, "")
       sym = name.upcase.gsub(/\s+/, "_").gsub(/[^A-Z0-9_]/, "").to_sym
+      next if sym == :"" || sym.to_s.empty?
       next if SEAL_DEFS.any? { |s| s[0] == sym }
       next if @dynamic_seal_defs.any? { |s| s[0] == sym }
       @dynamic_seal_defs << [sym, name, Color.new(255, 255, 255, 220), 6, 4, 0.12, 0.06]

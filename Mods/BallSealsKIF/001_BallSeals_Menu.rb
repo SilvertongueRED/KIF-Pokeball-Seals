@@ -44,6 +44,7 @@ class BallSealsHubScene
         pkmn = BallSealsKIF.choose_party_pokemon(BallSealsKIF.intl("Remove capsule from which Pokémon?"))
         next if !pkmn
         pkmn.ball_capsule_slot = nil if pkmn.respond_to?(:ball_capsule_slot=)
+        pkmn.ball_seals = [] if pkmn.respond_to?(:ball_seals=)
         pbMessage(BallSealsKIF.intl("Removed Ball Capsule assignment."))
       when 3
         pkmn = BallSealsKIF.choose_party_pokemon(BallSealsKIF.intl("Preview which Pokémon's capsule?"))

@@ -245,6 +245,8 @@ module BallSealsKIF
   @replacement_queue ||= []
   @graphics_hook_installed ||= false
   @menu_ensure_calls ||= 0
+  @dynamic_seal_defs ||= []
+  @dynamic_seal_icon_files ||= {}
 
   # ── Helpers ───────────────────────────────────────────────────────
 
@@ -312,18 +314,58 @@ module BallSealsKIF
     sym
   end
 
-  def self.seal_defs; SEAL_DEFS; end
-  def self.seal_ids; SEAL_DEFS.map { |s| s[0] }; end
+  # ── Dynamic seal scanning ──────────────────────────────────────────
+  # Scans the Icons/ folder at init time and registers any PNG file that
+  # is not already listed in SEAL_ICON_FILES.  This allows new seal
+  # images (e.g. letter seals A-Z, Water Drop Seal, Starburst Seal, …)
+  # to be used in-game simply by dropping them into the Icons/ folder.
+  def self.scan_icons_folder
+    @dynamic_seal_defs = []
+    @dynamic_seal_icon_files = {}
+    root = detect_game_root rescue nil
+    if !root
+      log("scan_icons_folder: could not detect game root")
+      return
+    end
+    icons_abs = File.join(root, ICONS_DIR)
+    return if !File.directory?(icons_abs)
+    existing_filenames = SEAL_ICON_FILES.values.map { |f| f.downcase }
+    Dir.glob(File.join(icons_abs, "*.png")).sort.each do |abs_path|
+      filename = File.basename(abs_path)
+      next if existing_filenames.include?(filename.downcase)
+      name = filename.sub(/\.png$/i, "")
+      sym = name.upcase.gsub(/\s+/, "_").gsub(/[^A-Z0-9_]/, "").to_sym
+      next if sym == :"" || sym.to_s.empty?
+      next if SEAL_DEFS.any? { |s| s[0] == sym }
+      next if @dynamic_seal_defs.any? { |s| s[0] == sym }
+      @dynamic_seal_defs << [sym, name, Color.new(255, 255, 255, 220), 6, 4, 0.12, 0.06]
+      @dynamic_seal_icon_files[sym] = filename
+    end
+    log("Scanned Icons folder: found #{@dynamic_seal_defs.length} additional seal(s)")
+  rescue => e
+    log("scan_icons_folder ERROR: #{e.class}: #{e.message}")
+  end
+
+  def self.all_seal_defs
+    SEAL_DEFS + (@dynamic_seal_defs || [])
+  end
+
+  def self.all_seal_icon_files
+    SEAL_ICON_FILES.merge(@dynamic_seal_icon_files || {})
+  end
+
+  def self.seal_defs; all_seal_defs; end
+  def self.seal_ids; all_seal_defs.map { |s| s[0] }; end
 
   def self.seal_name(sym)
     sym = resolve_seal_sym(sym)
-    found = SEAL_DEFS.find { |s| s[0] == sym }
+    found = all_seal_defs.find { |s| s[0] == sym }
     return found ? found[1] : sym.to_s
   end
 
   def self.seal_style(sym)
     sym = resolve_seal_sym(sym)
-    found = SEAL_DEFS.find { |s| s[0] == sym }
+    found = all_seal_defs.find { |s| s[0] == sym }
     return found || SEAL_DEFS[0]
   end
 
@@ -346,7 +388,7 @@ module BallSealsKIF
 
   def self.default_inventory
     h = {}
-    SEAL_DEFS.each { |s| h[s[0]] = 99 }
+    all_seal_defs.each { |s| h[s[0]] = 99 }
     return h
   end
 
@@ -466,7 +508,7 @@ module BallSealsKIF
 
   def self.icon_path(sym)
     sym = resolve_seal_sym(sym)
-    filename = SEAL_ICON_FILES[sym]
+    filename = all_seal_icon_files[sym]
     return nil if !filename
     rel = File.join(ICONS_DIR, filename)
     abs = File.join(detect_game_root, rel) rescue nil
@@ -609,14 +651,15 @@ module BallSealsKIF
   def self.start_capsule_burst_on_viewport(viewport, x, y, cap)
     return if !cap || !cap[:placements] || cap[:placements].empty?
     return if !viewport || (viewport.respond_to?(:disposed?) && viewport.disposed?)
-    particles = []
     # Sort placements by x-position so the left-to-right GUI arrangement
     # is preserved as the display/animation order during battle.
     sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
-    sorted.each do |pl|
+    # Stagger each seal's particles so they animate left-to-right in sequence.
+    # Each seal group starts STAGGER_FRAMES later than the previous one.
+    stagger_frames = 4
+    sorted.each_with_index do |pl, seal_idx|
       style = seal_style(pl[:seal])
       sym   = style[0]
-      # Use animation sprite for the burst particles
       bmp   = animation_bitmap_for(sym)
       next if !bmp || (bmp.respond_to?(:disposed?) && bmp.disposed?)
       count = style[4] || 10
@@ -624,6 +667,7 @@ module BallSealsKIF
       spin  = style[6] || 0.10
       ox = ((pl[:x].to_f - 0.5) * 393).to_i
       oy = ((pl[:y].to_f - 0.5) * 306).to_i
+      particles = []
       [1, count / 2].max.times do
         sp = Sprite.new(viewport)
         sp.bitmap = bmp
@@ -632,7 +676,7 @@ module BallSealsKIF
         sp.x = x + ox + rand(-23..23)
         sp.y = y + oy + rand(-17..17)
         sp.z = 999999
-        sp.opacity = 255
+        sp.opacity = 0
         sp.zoom_x = FX_SCALE
         sp.zoom_y = FX_SCALE
         vx = rand(-26..26) / 10.0
@@ -641,9 +685,15 @@ module BallSealsKIF
         vr  = 0
         particles << [sp, vx, vy, grav, rot, vr]
       end
+      delay = seal_idx * stagger_frames
+      @active_fx << { :vp => viewport, :frames => 32, :delay => delay,
+                      :started => (delay == 0), :particles => particles }
+      # Make first group visible immediately
+      if delay == 0
+        particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
+      end
     end
     safe_play_se("Pkmn send out")
-    @active_fx << { :vp => viewport, :frames => 32, :particles => particles }
     log("DBG: Started capsule burst with #{cap[:placements].length} placements at (#{x},#{y})")
   rescue => e
     log("start_capsule_burst_on_viewport ERROR: #{e.class}: #{e.message}")
@@ -659,6 +709,20 @@ module BallSealsKIF
     return if !@active_fx || @active_fx.empty?
     keep = []
     @active_fx.each do |fx|
+      # Handle staggered delay — wait before starting animation
+      if fx[:delay] && fx[:delay] > 0
+        fx[:delay] -= 1
+        keep << fx
+        next
+      end
+      # First frame after delay expires: make particles visible
+      if fx[:started] == false
+        fx[:started] = true
+        fx[:particles].each do |p|
+          sp = p[0]
+          sp.opacity = 255 if sp && !sp.disposed?
+        end
+      end
       fx[:frames] -= 1
       denom = [1, fx[:frames] + 1].max
       fx[:particles].each do |p|
@@ -761,6 +825,7 @@ module BallSealsKIF
 
   def self.init
     inject_accessors
+    scan_icons_folder
     ensure_global_data
     install_graphics_tick_hook
     log("=== #{MOD_NAME} #{MOD_VERSION} init ===")
@@ -848,7 +913,7 @@ class BallSealsCommandScene
         @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
       end
       @sprites["icon_preview"] = Sprite.new(@viewport)
-      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21 - (Graphics.width * 2 / 100)
+      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21 - (Graphics.width * 4 / 100)
       @sprites["icon_preview"].y = panel_y + 16 + (Graphics.height * 5 / 100)
       @sprites["icon_preview"].zoom_x = 3.0
       @sprites["icon_preview"].zoom_y = 3.0
@@ -907,8 +972,8 @@ if defined?(GameData) && defined?(GameData::Item)
       def icon_filename(item)
         return ballseals_icon_original(item) if item.nil?
         item_data = self.try_get(item)
-        if item_data && BallSealsKIF::SEAL_ICON_FILES.key?(item_data.id)
-          icon_file = BallSealsKIF::SEAL_ICON_FILES[item_data.id]
+        if item_data && BallSealsKIF.all_seal_icon_files.key?(item_data.id)
+          icon_file = BallSealsKIF.all_seal_icon_files[item_data.id]
           rel  = File.join(BallSealsKIF::ICONS_DIR, icon_file)
           # Use relative path — pbResolveBitmap and RGSS work with paths
           # relative to the game root; absolute paths break on most engines.

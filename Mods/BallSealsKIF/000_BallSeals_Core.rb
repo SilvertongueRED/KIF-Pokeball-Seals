@@ -414,6 +414,7 @@ module BallSealsKIF
       (0...w).each do |px|
         pixel = src.get_pixel(px, py)
         next if pixel.alpha == 0
+        # Cap outline alpha at 200 to keep a slight translucency on edges
         black_bmp.set_pixel(px, py, Color.new(0, 0, 0, [pixel.alpha, 200].min))
       end
     end
@@ -752,7 +753,7 @@ module BallSealsKIF
     sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
     # Stagger each seal's particles so they animate left-to-right in sequence.
     # Each seal group starts STAGGER_FRAMES later than the previous one.
-    stagger_frames = 4.368  # 5% slower stagger for readability (4.16 * 1.05)
+    stagger_frames = 4.368  # base 4 → +4% (4.16) → +5% (4.368); slower for readability
     sorted.each_with_index do |pl, seal_idx|
       style = seal_style(pl[:seal])
       sym   = style[0]

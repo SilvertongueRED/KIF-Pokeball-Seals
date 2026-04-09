@@ -366,6 +366,32 @@ module BallSealsKIF
       punctuation.sort_by { |s| s[1].downcase }
   end
 
+  # Returns only shape/effect seals (everything except letters and punctuation).
+  def self.shape_seal_defs
+    combined = SEAL_DEFS + (@dynamic_seal_defs || [])
+    combined.select { |s|
+      name = s[1].to_s
+      !(name =~ /\A[A-Za-z] Seal\z/) && !(name =~ /Exclamation Mark Seal|Question Mark Seal/i)
+    }.sort_by { |s| s[1].downcase }
+  end
+
+  # Returns only letter and punctuation (? !) seals.
+  def self.letter_seal_defs
+    combined = SEAL_DEFS + (@dynamic_seal_defs || [])
+    letters = []
+    punctuation = []
+    combined.each do |s|
+      name = s[1].to_s
+      if name =~ /\A[A-Za-z] Seal\z/
+        letters << s
+      elsif name =~ /Exclamation Mark Seal|Question Mark Seal/i
+        punctuation << s
+      end
+    end
+    letters.sort_by { |s| s[1].downcase } +
+      punctuation.sort_by { |s| s[1].downcase }
+  end
+
   def self.all_seal_icon_files
     SEAL_ICON_FILES.merge(@dynamic_seal_icon_files || {})
   end
@@ -687,19 +713,21 @@ module BallSealsKIF
       sp.bitmap = bmp
       sp.ox = bmp.width / 2
       sp.oy = bmp.height / 2
-      sp.x = x + ox + rand(-23..23)
-      sp.y = y + oy + rand(-17..17)
+      sp.x = x + ox
+      sp.y = y + oy
       sp.z = 999999
       sp.opacity = 0
       sp.zoom_x = FX_SCALE
       sp.zoom_y = FX_SCALE
-      vx = rand(-26..26) / 10.0
-      vy = rand(-41..-9) / 10.0
+      # Still animation: particles stay at their placed position without
+      # drifting, gravity, or spin so letter/shape seals are easy to read.
+      vx  = 0
+      vy  = 0
       rot = 0
       vr  = 0
-      particles = [[sp, vx, vy, grav, rot, vr]]
+      particles = [[sp, vx, vy, 0, rot, vr]]
       delay = seal_idx * stagger_frames
-      @active_fx << { :vp => viewport, :frames => 32, :delay => delay,
+      @active_fx << { :vp => viewport, :frames => 34, :delay => delay,
                       :started => (delay == 0), :particles => particles }
       # Make first group visible immediately
       if delay == 0

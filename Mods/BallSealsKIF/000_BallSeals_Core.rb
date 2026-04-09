@@ -108,10 +108,7 @@ module BallSealsKIF
   GUI_FILES = {
     :capsule_shape => "Pokeball.png",        # pokeball capsule overlay
     :capsule_bg    => "Display Boxes A.png", # seal case background
-    :icon_strip    => "Palette.png",         # UI icon strip
-    :side_panel    => "Display Boxes B.png", # info panel background
-    :title_bar     => "Selector.png",        # header decoration bar
-    :scroll_strip  => "Cursors.png"          # scroll indicator strip
+    :side_panel    => "Display Boxes B.png"  # info panel background
   }
 
   # ── Seal definitions ──────────────────────────────────────────────
@@ -392,6 +389,47 @@ module BallSealsKIF
       punctuation.sort_by { |s| s[1].downcase }
   end
 
+  # Returns true if the seal symbol corresponds to a letter or punctuation seal.
+  def self.letter_seal?(sym)
+    name = seal_name(sym).to_s
+    !!(name =~ /\A[A-Za-z] Seal\z/ || name =~ /Exclamation Mark Seal|Question Mark Seal/i)
+  end
+
+  # Creates a new bitmap with a 1px black outline around the original.
+  # Used for letter/punctuation seals in battle bursts for readability.
+  @outlined_bitmaps ||= {}
+  def self.outlined_bitmap_for(sym)
+    return @outlined_bitmaps[sym] if @outlined_bitmaps[sym] && !@outlined_bitmaps[sym].disposed?
+    src = bitmap_for(sym)
+    return src if !src || (src.respond_to?(:disposed?) && src.disposed?)
+    w = src.width
+    h = src.height
+    outlined = Bitmap.new(w + 2, h + 2)
+    src_rect = Rect.new(0, 0, w, h)
+    # Draw the source shifted in 8 directions as black shadow for outline
+    offsets = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]
+    # Create a solid black version of the source (preserving alpha)
+    black_bmp = Bitmap.new(w, h)
+    (0...h).each do |py|
+      (0...w).each do |px|
+        pixel = src.get_pixel(px, py)
+        next if pixel.alpha == 0
+        black_bmp.set_pixel(px, py, Color.new(0, 0, 0, [pixel.alpha, 200].min))
+      end
+    end
+    # Draw black outlines, then original on top
+    offsets.each do |dx, dy|
+      outlined.blt(1 + dx, 1 + dy, black_bmp, Rect.new(0, 0, w, h))
+    end
+    outlined.blt(1, 1, src, src_rect)
+    black_bmp.dispose
+    @outlined_bitmaps[sym] = outlined
+    outlined
+  rescue => e
+    log("outlined_bitmap_for ERROR: #{e.class}: #{e.message}")
+    bitmap_for(sym)
+  end
+
   def self.all_seal_icon_files
     SEAL_ICON_FILES.merge(@dynamic_seal_icon_files || {})
   end
@@ -669,7 +707,8 @@ module BallSealsKIF
       draw_capsule_shape(bitmap, 16, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
     end
     bitmap.fill_rect(20, bitmap.height/2 - 1, bitmap.width - 40, 2, Color.new(120,140,160,120))
-    bitmap.fill_rect(bitmap.width/2 - 1, 18, 2, bitmap.height - 36, Color.new(120,140,160,100))
+    vert_x = (bitmap.width / 2.0 + bitmap.width * 0.0075).to_i - 1
+    bitmap.fill_rect(vert_x, 18, 2, bitmap.height - 36, Color.new(120,140,160,100))
     cap = cap || { :placements => [] }
     cap[:placements].each do |pl|
       bx = bitmap_for(pl[:seal])
@@ -713,11 +752,11 @@ module BallSealsKIF
     sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
     # Stagger each seal's particles so they animate left-to-right in sequence.
     # Each seal group starts STAGGER_FRAMES later than the previous one.
-    stagger_frames = 4.16  # 4% slower than original (4 * 1.04)
+    stagger_frames = 4.368  # 5% slower stagger for readability (4.16 * 1.05)
     sorted.each_with_index do |pl, seal_idx|
       style = seal_style(pl[:seal])
       sym   = style[0]
-      bmp   = animation_bitmap_for(sym)
+      bmp   = letter_seal?(sym) ? outlined_bitmap_for(sym) : animation_bitmap_for(sym)
       next if !bmp || (bmp.respond_to?(:disposed?) && bmp.disposed?)
       count = style[4] || 10
       grav  = style[5] || 0.12
@@ -742,7 +781,7 @@ module BallSealsKIF
       vr  = 0
       particles = [[sp, vx, vy, 0, rot, vr]]
       delay = seal_idx * stagger_frames
-      @active_fx << { :vp => viewport, :frames => 36, :delay => delay,
+      @active_fx << { :vp => viewport, :frames => 38, :delay => delay,
                       :started => (delay == 0), :particles => particles }
       # Make first group visible immediately
       if delay == 0
@@ -920,20 +959,6 @@ class BallSealsCommandScene
     @sprites["bg"] = Sprite.new(@viewport)
     @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
     @sprites["bg"].bitmap.fill_rect(0,0,Graphics.width,Graphics.height,Color.new(14,18,24))
-    # Draw GUI title bar decoration across the top
-    title_bmp = BallSealsKIF.gui_bitmap(:title_bar)
-    if title_bmp
-      dest = Rect.new(0, 0, Graphics.width, 38)
-      src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
-    end
-    # Draw icon_strip as a thin decorative separator below the title area
-    strip_bmp = BallSealsKIF.gui_bitmap(:icon_strip)
-    if strip_bmp
-      dest = Rect.new(0, 60, Graphics.width, 6)
-      src  = Rect.new(0, 0, strip_bmp.width, strip_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, strip_bmp, src)
-    end
     safe_title = @title.to_s
     safe_title = safe_title[0, 28]
     @sprites["title"] = Window_UnformattedTextPokemon.newWithSize(safe_title, 0, 0, Graphics.width, 64, @viewport)
@@ -948,16 +973,6 @@ class BallSealsCommandScene
     y = 68
     @sprites["cmd"] = Window_CommandPokemon.newWithSize(@commands, x, y, win_w, win_h, @viewport)
     @sprites["cmd"].index = [[@initial_index, 0].max, @commands.length - 1].min
-    # Draw scroll_strip as a scroll indicator when the list overflows
-    scroll_bmp = BallSealsKIF.gui_bitmap(:scroll_strip)
-    visible_lines = [(win_h - 32) / line_h, 1].max
-    if scroll_bmp && @commands.length > visible_lines
-      scroll_x = x + win_w + 2
-      scroll_h = [win_h, scroll_bmp.height].min
-      dest = Rect.new(scroll_x, y, [scroll_bmp.width / 2, 16].min, scroll_h)
-      src  = Rect.new(0, 0, scroll_bmp.width, scroll_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, scroll_bmp, src)
-    end
     # Icon preview panel on the right side (when icons are provided)
     if has_icons
       panel_x = x + win_w + 24

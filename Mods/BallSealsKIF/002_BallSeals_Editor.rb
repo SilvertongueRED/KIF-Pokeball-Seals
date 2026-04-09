@@ -33,13 +33,6 @@ class BallSealsPlaceScene
     @sprites["bg"] = Sprite.new(@viewport)
     @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
     @sprites["bg"].bitmap.fill_rect(0,0,Graphics.width,Graphics.height,Color.new(14,18,24))
-    # Draw GUI title bar decoration if available
-    title_bmp = BallSealsKIF.gui_bitmap(:title_bar)
-    if title_bmp
-      dest = Rect.new(0, 0, Graphics.width, 38)
-      src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
-    end
     # Draw capsule_bg behind the canvas area
     capsule_bg = BallSealsKIF.gui_bitmap(:capsule_bg)
     if capsule_bg
@@ -53,13 +46,6 @@ class BallSealsPlaceScene
       dest = Rect.new(264, 64, Graphics.width - 280, 192)
       src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
       @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
-    end
-    # Draw icon_strip as a thin decorative separator below the title
-    strip_bmp = BallSealsKIF.gui_bitmap(:icon_strip)
-    if strip_bmp
-      dest = Rect.new(0, 60, Graphics.width, 6)
-      src  = Rect.new(0, 0, strip_bmp.width, strip_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, strip_bmp, src)
     end
     @sprites["title"] = Window_UnformattedTextPokemon.newWithSize("", 0, 0, Graphics.width, 64, @viewport)
     @sprites["title"].text = BallSealsKIF.intl("Place {1}", BallSealsKIF.seal_name(@seal_sym))[0, 26]
@@ -136,20 +122,6 @@ class BallSealsCapsuleEditorScene
     @sprites["bg"] = Sprite.new(@viewport)
     @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
     @sprites["bg"].bitmap.fill_rect(0,0,Graphics.width,Graphics.height,Color.new(14,18,24))
-    # Draw GUI title bar decoration across the top
-    title_bmp = BallSealsKIF.gui_bitmap(:title_bar)
-    if title_bmp
-      dest = Rect.new(0, 0, Graphics.width, 38)
-      src  = Rect.new(0, 0, title_bmp.width, title_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, title_bmp, src)
-    end
-    # Draw icon_strip as a thin decorative separator below the title area
-    strip_bmp = BallSealsKIF.gui_bitmap(:icon_strip)
-    if strip_bmp
-      dest = Rect.new(0, 60, Graphics.width, 6)
-      src  = Rect.new(0, 0, strip_bmp.width, strip_bmp.height)
-      @sprites["bg"].bitmap.stretch_blt(dest, strip_bmp, src)
-    end
     # Draw capsule_bg behind the canvas area
     capsule_bg = BallSealsKIF.gui_bitmap(:capsule_bg)
     if capsule_bg
@@ -235,15 +207,7 @@ class BallSealsCapsuleEditorScene
     lines << BallSealsKIF.intl("Slot: {1}", @slot)
     lines << BallSealsKIF.intl("Name: {1}", short_name)
     lines << BallSealsKIF.intl("Seals: {1}/{2}", (@capsule[:placements] || []).length, BallSealsKIF::MAX_SEALS_PER_CAPSULE)
-    if @capsule[:placements] && !@capsule[:placements].empty?
-      lines << ""
-      lines << BallSealsKIF.intl("Placed seals:")
-      @capsule[:placements][0,5].each_with_index do |pl, i|
-        lines << sprintf("%d. %s", i + 1, BallSealsKIF.seal_name(pl[:seal]))
-      end
-      extra = (@capsule[:placements].length - 5)
-      lines << BallSealsKIF.intl("+ {1} more", extra) if extra > 0
-    else
+    if !@capsule[:placements] || @capsule[:placements].empty?
       lines << BallSealsKIF.intl("No seals placed.")
       lines << BallSealsKIF.intl("Use Actions to add one.")
     end

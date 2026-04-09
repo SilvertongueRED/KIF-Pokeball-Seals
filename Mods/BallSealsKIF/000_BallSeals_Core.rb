@@ -651,7 +651,7 @@ module BallSealsKIF
     bitmap.blt(px - bx.width/2, py - bx.height/2, bx, Rect.new(0,0,bx.width,bx.height))
   end
 
-  def self.refresh_capsule_canvas(bitmap, cap, cursor_x = nil, cursor_y = nil)
+  def self.refresh_capsule_canvas(bitmap, cap, cursor_x = nil, cursor_y = nil, cursor_seal = nil)
     return if !bitmap
     bitmap.clear
     bg = Color.new(18, 22, 30)
@@ -681,6 +681,21 @@ module BallSealsKIF
     if !cursor_x.nil? && !cursor_y.nil?
       px = 16 + (cursor_x.to_f * (bitmap.width - 32)).to_i
       py = 12 + (cursor_y.to_f * (bitmap.height - 24)).to_i
+      # Draw a semi-transparent shadow of the seal being placed at the cursor
+      if cursor_seal
+        shadow_bmp = bitmap_for(cursor_seal)
+        if shadow_bmp
+          size = CANVAS_ICON_SIZE
+          dest = Rect.new(px - size / 2, py - size / 2, size, size)
+          src  = Rect.new(0, 0, shadow_bmp.width, shadow_bmp.height)
+          # Create a temporary bitmap to draw the seal at reduced opacity
+          temp = Bitmap.new(size, size)
+          temp.stretch_blt(Rect.new(0, 0, size, size), shadow_bmp, src)
+          # Blit with reduced opacity for a shadow/ghost effect
+          bitmap.blt(px - size / 2, py - size / 2, temp, Rect.new(0, 0, size, size), 120)
+          temp.dispose
+        end
+      end
       c = Color.new(255,255,255)
       bitmap.fill_rect(px - 7, py, 15, 1, c)
       bitmap.fill_rect(px, py - 7, 1, 15, c)
@@ -698,7 +713,7 @@ module BallSealsKIF
     sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
     # Stagger each seal's particles so they animate left-to-right in sequence.
     # Each seal group starts STAGGER_FRAMES later than the previous one.
-    stagger_frames = 4
+    stagger_frames = 4.16  # 4% slower than original (4 * 1.04)
     sorted.each_with_index do |pl, seal_idx|
       style = seal_style(pl[:seal])
       sym   = style[0]
@@ -727,7 +742,7 @@ module BallSealsKIF
       vr  = 0
       particles = [[sp, vx, vy, 0, rot, vr]]
       delay = seal_idx * stagger_frames
-      @active_fx << { :vp => viewport, :frames => 34, :delay => delay,
+      @active_fx << { :vp => viewport, :frames => 36, :delay => delay,
                       :started => (delay == 0), :particles => particles }
       # Make first group visible immediately
       if delay == 0

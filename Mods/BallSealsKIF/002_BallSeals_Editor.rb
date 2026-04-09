@@ -83,7 +83,7 @@ class BallSealsPlaceScene
     @sprites["help"] = Window_UnformattedTextPokemon.newWithSize("", 0, Graphics.height - 88, Graphics.width, 88, @viewport)
     @sprites["help"].text = BallSealsKIF.intl("D-Pad: Move  Confirm: Place  Back: Cancel")
     loop do
-      BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, @capsule, @x, @y)
+      BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, @capsule, @x, @y, @seal_sym)
       Graphics.update
       Input.update
       if Input.repeat?(Input::LEFT)

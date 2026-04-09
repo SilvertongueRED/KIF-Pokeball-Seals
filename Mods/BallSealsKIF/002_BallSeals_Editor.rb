@@ -251,7 +251,23 @@ class BallSealsCapsuleEditorScene
   end
 
   def choose_seal
-    defs = BallSealsKIF.seal_defs
+    # Two-step category menu: Shapes vs Letters
+    categories = [
+      BallSealsKIF.intl("Shapes"),
+      BallSealsKIF.intl("Letters"),
+      BallSealsKIF.intl("Back")
+    ]
+    cat_idx = BallSealsCommandScene.new(
+      BallSealsKIF.intl("Seal Category"),
+      categories,
+      BallSealsKIF.intl("Choose a category.")
+    ).main
+    return nil if cat_idx.nil? || cat_idx == 2
+    defs = case cat_idx
+           when 0 then BallSealsKIF.shape_seal_defs
+           when 1 then BallSealsKIF.letter_seal_defs
+           end
+    return nil if !defs || defs.empty?
     commands = defs.map { |s| "#{s[1]} x#{BallSealsKIF.inventory[s[0]] || 0}" }
     icons = defs.map { |s| BallSealsKIF.bitmap_for(s[0]) }
     idx = BallSealsCommandScene.new(BallSealsKIF.intl("Choose Seal"), commands, BallSealsKIF.intl("Choose a seal."), 0, nil, icons).main

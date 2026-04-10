@@ -6,12 +6,18 @@ module BallSealsKIF
   # any scene that is NOT PokeBattle_SceneEBDX (Classic+, vanilla
   # Type 2, etc.).  Called BEFORE the send-out animation so the
   # particles play in parallel with the pokéball opening.
+  #
+  # When Ghost Classic+ UI is detected the burst is staggered by
+  # GHOST_BURST_DELAY frames so the seals appear in sync with Ghost's
+  # slightly later ball-open timing.  When Ghost is absent (vanilla
+  # EBDX / standard scene) the burst fires immediately (delay 0).
   def self.trigger_vanilla_burst(scene, send_outs)
     return if !send_outs || send_outs.empty?
     battle  = scene.instance_variable_get(:@battle)  rescue nil
     sprites = scene.instance_variable_get(:@sprites) rescue nil
     vp      = resolve_test_viewport(scene)
     return if !vp
+    burst_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : 0
     send_outs.each do |pair|
       idxBattler = pair[0]
       pkmn       = pair[1]
@@ -26,8 +32,8 @@ module BallSealsKIF
       if slot >= 1
         y -= (Graphics.height * 0.06).to_i
       end
-      start_capsule_burst_on_viewport(vp, x, y, cap)
-      log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y})")
+      start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+      log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
     end
   rescue => e
     log("trigger_vanilla_burst ERROR: #{e.class}: #{e.message}")
@@ -257,8 +263,15 @@ module BallSealsKIF
   end
 
   def self.init_battle
+    # Reset Ghost detection cache so a fresh check runs every init
+    @ghost_classic_detected = nil
     install_sendout_hooks
     install_burst_replacement_hook
+    if ghost_classic_installed?
+      log("Ghost Classic+ UI detected — burst delay set to #{GHOST_BURST_DELAY} frames")
+    else
+      log("Ghost Classic+ UI not detected — using default burst timing")
+    end
   end
 end
 

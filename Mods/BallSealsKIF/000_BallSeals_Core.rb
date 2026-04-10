@@ -751,7 +751,29 @@ module BallSealsKIF
 
   # ── Pokeball opening burst animation ──────────────────────────────
 
-  def self.start_capsule_burst_on_viewport(viewport, x, y, cap)
+  # Burst delay (in frames) added when Ghost Classic+ UI is detected.
+  # Ghost's vanilla scene opens the pokéball slightly later than EBDX,
+  # so the seal burst needs a matching stagger to stay in sync.
+  GHOST_BURST_DELAY = 12
+
+  # Detect whether Ghost Classic+ UI mod is installed and active.
+  # Checks for the characteristic aliases it applies to PokeBattle_Scene.
+  def self.ghost_classic_installed?
+    return @ghost_classic_detected if defined?(@ghost_classic_detected)
+    @ghost_classic_detected = false
+    begin
+      scene_klass = resolve_scene_class
+      if scene_klass &&
+         scene_klass.method_defined?(:ghost_classicplus_substitute_pbStartBattle) &&
+         scene_klass.method_defined?(:pbRefreshBattlerTones)
+        @ghost_classic_detected = true
+      end
+    rescue
+    end
+    @ghost_classic_detected
+  end
+
+  def self.start_capsule_burst_on_viewport(viewport, x, y, cap, burst_delay = 0)
     return if !cap || !cap[:placements] || cap[:placements].empty?
     return if !viewport || (viewport.respond_to?(:disposed?) && viewport.disposed?)
     # Sort placements by x-position so the left-to-right GUI arrangement
@@ -786,11 +808,17 @@ module BallSealsKIF
       rot = 0
       vr  = 0
       particles = [[sp, vx, vy, 0, rot, vr]]
-      # All seals start simultaneously (delay 0) — no stagger between groups.
-      @active_fx << { :vp => viewport, :frames => 38, :delay => 0,
-                      :started => true, :particles => particles }
-      # Make visible immediately
-      particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
+      # All seals start simultaneously — optional burst_delay staggers them
+      # when Ghost Classic+ shifts the ball-open timing later.
+      # :hold keeps seals at full opacity for ~2 seconds (40 frames at 20fps)
+      # before the fade-out begins.
+      started = burst_delay <= 0
+      @active_fx << { :vp => viewport, :frames => 38, :delay => burst_delay,
+                      :hold => 40, :started => started, :particles => particles }
+      # Make visible immediately only when there is no burst delay
+      if started
+        particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
+      end
     end
     safe_play_se("Pkmn send out")
     log("DBG: Started capsule burst with #{cap[:placements].length} placements at (#{x},#{y})")
@@ -821,6 +849,13 @@ module BallSealsKIF
           sp = p[0]
           sp.opacity = 255 if sp && !sp.disposed?
         end
+      end
+      # Hold phase — keep seals at full opacity for :hold frames (~2 s)
+      # before beginning the fade-out.
+      if fx[:hold] && fx[:hold] > 0
+        fx[:hold] -= 1
+        keep << fx
+        next
       end
       fx[:frames] -= 1
       denom = [1, fx[:frames] + 1].max
@@ -881,7 +916,8 @@ module BallSealsKIF
       owns_viewport = true
     end
     start_capsule_burst_on_viewport(vp, Graphics.width / 2, Graphics.height / 2, cap)
-    40.times do
+    # 40 hold frames + 38 fade frames + a small buffer = ~82 frames total
+    82.times do
       Graphics.update
       begin
         Input.update

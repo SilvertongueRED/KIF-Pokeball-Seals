@@ -713,6 +713,7 @@ module BallSealsKIF
       draw_capsule_shape(bitmap, 16, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
     end
     bitmap.fill_rect(20, bitmap.height/2 - 1, bitmap.width - 40, 2, Color.new(120,140,160,120))
+    # Vertical center line: offset 1.5% right of true center (was 0.75%, shifted +0.75%)
     vert_x = (bitmap.width / 2.0 + bitmap.width * 0.015).to_i - 1
     bitmap.fill_rect(vert_x, 18, 2, bitmap.height - 36, Color.new(120,140,160,100))
     cap = cap || { :placements => [] }

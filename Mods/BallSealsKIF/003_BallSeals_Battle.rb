@@ -21,7 +21,8 @@ module BallSealsKIF
       x, y = player_battler_burst_pos(scene, sprites, idxBattler)
       # In doubles, the right-side pokemon (slot >= 1) gets its seal burst
       # raised by 6% of screen height to prevent overlap with the left pokemon.
-      slot = ((idxBattler || 0) / 2) rescue 0
+      slot = ((idxBattler || 0) / 2)
+      slot = 0 if !slot.is_a?(Integer)
       if slot >= 1
         y -= (Graphics.height * 0.06).to_i
       end
@@ -220,11 +221,14 @@ module BallSealsKIF
           # to prevent overlap with the left pokemon's seals.
           burst_y = y
           begin
-            slot = ((idx_battler || 0) / 2) rescue 0
+            slot = ((idx_battler || 0) / 2)
+            slot = 0 if !slot.is_a?(Integer)
             if slot >= 1
               burst_y -= (Graphics.height * 0.06).to_i
             end
-          rescue; end
+          rescue => e
+            BallSealsKIF.log("EBBallBurst slot offset ERROR: #{e.class}: #{e.message}")
+          end
           BallSealsKIF.log("DBG: Replacing vanilla EBBallBurst with capsule burst at (#{x},#{burst_y})")
           # Uses the seal icon images for pokeball opening particles
           BallSealsKIF.start_capsule_burst_on_viewport(viewport, x, burst_y, cap)

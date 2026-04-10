@@ -227,16 +227,32 @@ class BallSealsCapsuleEditorScene
       BallSealsKIF.intl("Choose a category.")
     ).main
     return nil if cat_idx.nil? || cat_idx == 2
-    defs = case cat_idx
-           when 0 then BallSealsKIF.shape_seal_defs
-           when 1 then BallSealsKIF.letter_seal_defs
-           end
-    return nil if !defs || defs.empty?
-    commands = defs.map { |s| "#{s[1]} x#{BallSealsKIF.inventory[s[0]] || 0}" }
-    icons = defs.map { |s| BallSealsKIF.bitmap_for(s[0]) }
-    idx = BallSealsCommandScene.new(BallSealsKIF.intl("Choose Seal"), commands, BallSealsKIF.intl("Choose a seal."), 0, nil, icons).main
-    return nil if idx.nil?
-    defs[idx][0]
+    # Seal list with sort toggle — loops so toggling re-renders the list
+    loop do
+      raw_defs = case cat_idx
+                 when 0 then BallSealsKIF.shape_seal_defs
+                 when 1 then BallSealsKIF.letter_seal_defs
+                 end
+      return nil if !raw_defs || raw_defs.empty?
+      defs = BallSealsKIF.sorted_seal_defs(raw_defs)
+      # First entry is the sort toggle button
+      commands = [BallSealsKIF.sort_mode_label] +
+                 defs.map { |s| "#{s[1]} x#{BallSealsKIF.inventory[s[0]] || 0}" }
+      icons = [nil] + defs.map { |s| BallSealsKIF.bitmap_for(s[0]) }
+      idx = BallSealsCommandScene.new(
+        BallSealsKIF.intl("Choose Seal"),
+        commands,
+        BallSealsKIF.intl("Choose a seal."),
+        0, nil, icons
+      ).main
+      return nil if idx.nil?
+      if idx == 0
+        # Toggle sort mode and re-display the list
+        BallSealsKIF.toggle_seal_sort_mode
+        next
+      end
+      return defs[idx - 1][0]
+    end
   end
 
   def choose_existing(prompt)
@@ -256,6 +272,7 @@ class BallSealsCapsuleEditorScene
     return if !placement
     @capsule[:placements] ||= []
     @capsule[:placements] << placement
+    BallSealsKIF.record_seal_use(sym)
     save_capsule
   end
 

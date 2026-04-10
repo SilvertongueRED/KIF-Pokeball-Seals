@@ -263,6 +263,8 @@ module BallSealsKIF
   end
 
   def self.init_battle
+    # Reset Ghost detection cache so a fresh check runs every init
+    @ghost_classic_detected = nil
     install_sendout_hooks
     install_burst_replacement_hook
     if ghost_classic_installed?

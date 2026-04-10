@@ -29,6 +29,13 @@ module BallSealsKIF
   FX_SCALE = 3.0
   CANVAS_ICON_SIZE = 20
 
+  # ── Seal list sorting ────────────────────────────────────────────
+  # Persists for the session (across menu openings) but resets on
+  # game restart.  :alpha = alphabetical, :recent = recently used first.
+  @seal_sort_mode = :alpha
+  def self.seal_sort_mode; @seal_sort_mode; end
+  def self.seal_sort_mode=(v); @seal_sort_mode = v; end
+
   # ── Asset folder paths (relative to game root) ───────────────────
   GRAPHICS_BASE  = File.join("Graphics", "BallSeals")
   ICONS_DIR      = File.join(GRAPHICS_BASE, "Icons")
@@ -387,6 +394,54 @@ module BallSealsKIF
     end
     letters.sort_by { |s| s[1].downcase } +
       punctuation.sort_by { |s| s[1].downcase }
+  end
+
+  # ── Seal usage tracking (for "recently added" sorting) ───────────
+  # Maintains an ordered list of seal symbols in the global save data.
+  # The most recently placed seal is at the END of the array.  This
+  # list is persisted across saves so the sort order is stable.
+
+  def self.seal_use_order
+    data = ensure_global_data
+    return [] if !data
+    data[:seal_use_order] ||= []
+    data[:seal_use_order]
+  end
+
+  def self.record_seal_use(sym)
+    data = ensure_global_data
+    return if !data
+    data[:seal_use_order] ||= []
+    data[:seal_use_order].delete(sym)
+    data[:seal_use_order] << sym
+  end
+
+  # Sort a seal def list according to the current seal_sort_mode.
+  # :alpha  — alphabetical by display name (default)
+  # :recent — most recently used seals first; unused seals at the end
+  def self.sorted_seal_defs(defs)
+    return defs if !defs || defs.empty?
+    case @seal_sort_mode
+    when :recent
+      order = seal_use_order
+      defs.sort_by do |s|
+        idx = order.index(s[0])
+        idx ? -(idx + 1) : 0   # used seals sort by recency (newest first); unused seals last
+      end
+    else # :alpha
+      defs.sort_by { |s| s[1].downcase }
+    end
+  end
+
+  def self.sort_mode_label
+    case @seal_sort_mode
+    when :recent then intl("Sort: Recent")
+    else              intl("Sort: A-Z")
+    end
+  end
+
+  def self.toggle_seal_sort_mode
+    @seal_sort_mode = (@seal_sort_mode == :alpha) ? :recent : :alpha
   end
 
   # Returns true if the seal symbol corresponds to a letter or punctuation seal.
@@ -758,8 +813,10 @@ module BallSealsKIF
 
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.
+  # The result is cached per session; init_battle resets the cache so
+  # removing/adding Ghost is picked up after a game restart.
   def self.ghost_classic_installed?
-    return @ghost_classic_detected if defined?(@ghost_classic_detected)
+    return @ghost_classic_detected if defined?(@ghost_classic_detected) && !@ghost_classic_detected.nil?
     @ghost_classic_detected = false
     begin
       scene_klass = resolve_scene_class

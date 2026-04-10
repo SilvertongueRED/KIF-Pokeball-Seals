@@ -816,7 +816,7 @@ module BallSealsKIF
   # The result is cached per session; init_battle resets the cache so
   # removing/adding Ghost is picked up after a game restart.
   def self.ghost_classic_installed?
-    return @ghost_classic_detected if defined?(@ghost_classic_detected) && !@ghost_classic_detected.nil?
+    return @ghost_classic_detected unless @ghost_classic_detected.nil?
     @ghost_classic_detected = false
     begin
       scene_klass = resolve_scene_class
@@ -973,8 +973,9 @@ module BallSealsKIF
       owns_viewport = true
     end
     start_capsule_burst_on_viewport(vp, Graphics.width / 2, Graphics.height / 2, cap)
-    # 40 hold frames + 38 fade frames + a small buffer = ~82 frames total
-    82.times do
+    # hold (40) + fade (38) + small buffer (4) = total preview frames
+    preview_frames = 40 + 38 + 4
+    preview_frames.times do
       Graphics.update
       begin
         Input.update

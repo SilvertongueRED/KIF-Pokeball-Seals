@@ -576,14 +576,19 @@ module BallSealsKIF
     nil
   end
 
-  def self.enqueue_capsule_for_pokemon(pkmn)
+  def self.enqueue_capsule_for_pokemon(pkmn, idx_battler = nil)
     cap = capsule_for_pokemon(pkmn)
-    @replacement_queue << cap
+    @replacement_queue << { :cap => cap, :idx_battler => idx_battler }
   end
 
   def self.clear_replacement_queue; @replacement_queue = []; end
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
-  def self.consume_replacement_capsule; @replacement_queue.empty? ? nil : @replacement_queue.shift; end
+  def self.consume_replacement_capsule
+    return nil if @replacement_queue.empty?
+    entry = @replacement_queue.shift
+    # Support both old (bare capsule) and new (hash with :cap/:idx_battler) formats
+    entry.is_a?(Hash) && entry.key?(:cap) ? entry : { :cap => entry, :idx_battler => nil }
+  end
 
   # ── Asset path helpers ────────────────────────────────────────────
 
@@ -708,7 +713,8 @@ module BallSealsKIF
       draw_capsule_shape(bitmap, 16, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
     end
     bitmap.fill_rect(20, bitmap.height/2 - 1, bitmap.width - 40, 2, Color.new(120,140,160,120))
-    vert_x = (bitmap.width / 2.0 + bitmap.width * 0.0075).to_i - 1
+    # Vertical center line: offset 1.5% right of true center (was 0.75%, shifted +0.75%)
+    vert_x = (bitmap.width / 2.0 + bitmap.width * 0.015).to_i - 1
     bitmap.fill_rect(vert_x, 18, 2, bitmap.height - 36, Color.new(120,140,160,100))
     cap = cap || { :placements => [] }
     cap[:placements].each do |pl|
@@ -751,9 +757,8 @@ module BallSealsKIF
     # Sort placements by x-position so the left-to-right GUI arrangement
     # is preserved as the display/animation order during battle.
     sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
-    # Stagger each seal's particles so they animate left-to-right in sequence.
-    # Each seal group starts STAGGER_FRAMES later than the previous one.
-    stagger_frames = 4.368  # base 4 → +4% (4.16) → +5% (4.368); slower for readability
+    # All seals animate at the exact same time (no stagger delay) but are
+    # drawn in left-to-right order matching their GUI placement sequence.
     sorted.each_with_index do |pl, seal_idx|
       style = seal_style(pl[:seal])
       sym   = style[0]
@@ -781,13 +786,11 @@ module BallSealsKIF
       rot = 0
       vr  = 0
       particles = [[sp, vx, vy, 0, rot, vr]]
-      delay = seal_idx * stagger_frames
-      @active_fx << { :vp => viewport, :frames => 38, :delay => delay,
-                      :started => (delay == 0), :particles => particles }
-      # Make first group visible immediately
-      if delay == 0
-        particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
-      end
+      # All seals start simultaneously (delay 0) — no stagger between groups.
+      @active_fx << { :vp => viewport, :frames => 38, :delay => 0,
+                      :started => true, :particles => particles }
+      # Make visible immediately
+      particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
     end
     safe_play_se("Pkmn send out")
     log("DBG: Started capsule burst with #{cap[:placements].length} placements at (#{x},#{y})")

@@ -26,6 +26,12 @@ module BallSealsKIF
       cap = capsule_for_pokemon(pkmn)
       next if !cap || !cap[:placements] || cap[:placements].empty?
       x, y = player_battler_burst_pos(scene, sprites, idxBattler, pkmn)
+      # When Ghost Classic+ UI is detected, raise player-side seal
+      # animations by GHOST_CLASSIC_Y_RAISE_PCT of screen height so they
+      # sit above the Pokémon sprite instead of overlapping with it.
+      if ghost_classic_installed?
+        y -= (Graphics.height * GHOST_CLASSIC_Y_RAISE_PCT).to_i
+      end
       # In doubles, the right-side pokemon (slot >= 1) gets its seal burst
       # lowered by 10% of screen height to prevent overlap with the left pokemon.
       # Only applied when Ghost Classic+ UI is active (EBDX handles this in

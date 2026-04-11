@@ -8,7 +8,7 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
   begin
     PluginManager.register({
       :name    => "Ball Seals",
-      :version => "0.3.2",
+      :version => "0.4.0",
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
@@ -22,7 +22,7 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.3.2"
+  MOD_VERSION = "0.4.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8
@@ -122,10 +122,9 @@ module BallSealsKIF
   #  [symbol, display_name, fallback_color, fallback_size,
   #   particle_count, gravity, spin]
   #
-  # 134 seal types organized into 14 shape groups.
+  # 140 seal types organized into 14 shape groups.
   # Each shape has 10 color variants labeled by color name:
   #   Black, Purple, Grey, Green, Yellow, Red, Pink, Orange, White, Blue
-  # Smoke seals only have 4 variants (Black, Purple, Grey, Green).
   SEAL_DEFS = [
     # Heart Seals (classic heart shape, 10 colors)
     [:HEART_BLACK,   "Heart Seal Black",   Color.new( 30, 30, 30,220),  6,  2, 0.18, 0.10],
@@ -149,11 +148,17 @@ module BallSealsKIF
     [:STAR_ORANGE,   "Star Seal Orange",   Color.new(255,160, 30,220),  6, 16, 0.16, 0.20],
     [:STAR_WHITE,    "Star Seal White",    Color.new(240,240,240,220),  6, 18, 0.16, 0.20],
     [:STAR_BLUE,     "Star Seal Blue",     Color.new( 50,120,240,220),  6, 20, 0.16, 0.20],
-    # Smoke Seals (4 colors only: Black, Purple, Grey, Green)
+    # Smoke Seals (smoke puff shape, 10 colors)
     [:SMOKE_BLACK,   "Smoke Seal Black",   Color.new( 30, 30, 30,170),  8,  2,-0.02, 0.02],
     [:SMOKE_PURPLE,  "Smoke Seal Purple",  Color.new(140, 40,180,170),  8,  4,-0.02, 0.02],
     [:SMOKE_GREY,    "Smoke Seal Grey",    Color.new(150,150,150,170),  8,  6,-0.02, 0.02],
     [:SMOKE_GREEN,   "Smoke Seal Green",   Color.new( 40,190, 60,170),  8,  8,-0.02, 0.02],
+    [:SMOKE_YELLOW,  "Smoke Seal Yellow",  Color.new(255,220, 30,170),  8, 10,-0.02, 0.02],
+    [:SMOKE_RED,     "Smoke Seal Red",     Color.new(230, 40, 40,170),  8, 12,-0.02, 0.02],
+    [:SMOKE_PINK,    "Smoke Seal Pink",    Color.new(255,120,180,170),  8, 14,-0.02, 0.02],
+    [:SMOKE_ORANGE,  "Smoke Seal Orange",  Color.new(255,160, 30,170),  8, 16,-0.02, 0.02],
+    [:SMOKE_WHITE,   "Smoke Seal White",   Color.new(240,240,240,170),  8, 18,-0.02, 0.02],
+    [:SMOKE_BLUE,    "Smoke Seal Blue",    Color.new( 50,120,240,170),  8, 20,-0.02, 0.02],
     # Song Seals (music note shape, 10 colors)
     [:SONG_BLACK,    "Song Seal Black",    Color.new( 30, 30, 30,220),  6,  2, 0.10, 0.08],
     [:SONG_PURPLE,   "Song Seal Purple",   Color.new(140, 40,180,220),  6,  4, 0.10, 0.08],
@@ -176,17 +181,17 @@ module BallSealsKIF
     [:FIRE_ORANGE,   "Fire Seal Orange",   Color.new(255,160, 30,220),  6, 16, 0.22, 0.08],
     [:FIRE_WHITE,    "Fire Seal White",    Color.new(240,240,240,220),  6, 18, 0.22, 0.08],
     [:FIRE_BLUE,     "Fire Seal Blue",     Color.new( 50,120,240,220),  6, 20, 0.22, 0.08],
-    # Party Seals (diamond/party hat shape, 10 colors)
-    [:PARTY_BLACK,   "Party Seal Black",   Color.new( 30, 30, 30,220),  4,  2, 0.18, 0.24],
-    [:PARTY_PURPLE,  "Party Seal Purple",  Color.new(140, 40,180,220),  4,  4, 0.18, 0.24],
-    [:PARTY_GREY,    "Party Seal Grey",    Color.new(150,150,150,220),  4,  6, 0.18, 0.24],
-    [:PARTY_GREEN,   "Party Seal Green",   Color.new( 40,190, 60,220),  4,  8, 0.18, 0.24],
-    [:PARTY_YELLOW,  "Party Seal Yellow",  Color.new(255,220, 30,220),  4, 10, 0.18, 0.24],
-    [:PARTY_RED,     "Party Seal Red",     Color.new(230, 40, 40,220),  4, 12, 0.18, 0.24],
-    [:PARTY_PINK,    "Party Seal Pink",    Color.new(255,120,180,220),  4, 14, 0.18, 0.24],
-    [:PARTY_ORANGE,  "Party Seal Orange",  Color.new(255,160, 30,220),  4, 16, 0.18, 0.24],
-    [:PARTY_WHITE,   "Party Seal White",   Color.new(240,240,240,220),  4, 18, 0.18, 0.24],
-    [:PARTY_BLUE,    "Party Seal Blue",    Color.new( 50,120,240,220),  4, 20, 0.18, 0.24],
+    # Sparkle Seals (diamond/sparkle shape, 10 colors)
+    [:SPARKLE_BLACK,   "Sparkle Seal Black",   Color.new( 30, 30, 30,220),  4,  2, 0.18, 0.24],
+    [:SPARKLE_PURPLE,  "Sparkle Seal Purple",  Color.new(140, 40,180,220),  4,  4, 0.18, 0.24],
+    [:SPARKLE_GREY,    "Sparkle Seal Grey",    Color.new(150,150,150,220),  4,  6, 0.18, 0.24],
+    [:SPARKLE_GREEN,   "Sparkle Seal Green",   Color.new( 40,190, 60,220),  4,  8, 0.18, 0.24],
+    [:SPARKLE_YELLOW,  "Sparkle Seal Yellow",  Color.new(255,220, 30,220),  4, 10, 0.18, 0.24],
+    [:SPARKLE_RED,     "Sparkle Seal Red",     Color.new(230, 40, 40,220),  4, 12, 0.18, 0.24],
+    [:SPARKLE_PINK,    "Sparkle Seal Pink",    Color.new(255,120,180,220),  4, 14, 0.18, 0.24],
+    [:SPARKLE_ORANGE,  "Sparkle Seal Orange",  Color.new(255,160, 30,220),  4, 16, 0.18, 0.24],
+    [:SPARKLE_WHITE,   "Sparkle Seal White",   Color.new(240,240,240,220),  4, 18, 0.18, 0.24],
+    [:SPARKLE_BLUE,    "Sparkle Seal Blue",    Color.new( 50,120,240,220),  4, 20, 0.18, 0.24],
     # Flower Seals (flower with center circle, 10 colors — renamed from Flora)
     [:FLOWER_BLACK,  "Flower Seal Black",  Color.new( 30, 30, 30,220),  6,  2, 0.14, 0.12],
     [:FLOWER_PURPLE, "Flower Seal Purple", Color.new(140, 40,180,220),  6,  4, 0.14, 0.12],
@@ -291,6 +296,9 @@ module BallSealsKIF
     :STAR_WHITE     => "Star Seal White.png",     :STAR_BLUE      => "Star Seal Blue.png",
     :SMOKE_BLACK    => "Smoke Seal Black.png",    :SMOKE_PURPLE   => "Smoke Seal Purple.png",
     :SMOKE_GREY     => "Smoke Seal Grey.png",     :SMOKE_GREEN    => "Smoke Seal Green.png",
+    :SMOKE_YELLOW   => "Smoke Seal Yellow.png",   :SMOKE_RED      => "Smoke Seal Red.png",
+    :SMOKE_PINK     => "Smoke Seal Pink.png",     :SMOKE_ORANGE   => "Smoke Seal Orange.png",
+    :SMOKE_WHITE    => "Smoke Seal White.png",    :SMOKE_BLUE     => "Smoke Seal Blue.png",
     :SONG_BLACK     => "Song Seal Black.png",     :SONG_PURPLE    => "Song Seal Purple.png",
     :SONG_GREY      => "Song Seal Grey.png",      :SONG_GREEN     => "Song Seal Green.png",
     :SONG_YELLOW    => "Song Seal Yellow.png",    :SONG_RED       => "Song Seal Red.png",
@@ -301,11 +309,11 @@ module BallSealsKIF
     :FIRE_YELLOW    => "Fire Seal Yellow.png",    :FIRE_RED       => "Fire Seal Red.png",
     :FIRE_PINK      => "Fire Seal Pink.png",      :FIRE_ORANGE    => "Fire Seal Orange.png",
     :FIRE_WHITE     => "Fire Seal White.png",     :FIRE_BLUE      => "Fire Seal Blue.png",
-    :PARTY_BLACK    => "Party Seal Black.png",    :PARTY_PURPLE   => "Party Seal Purple.png",
-    :PARTY_GREY     => "Party Seal Grey.png",     :PARTY_GREEN    => "Party Seal Green.png",
-    :PARTY_YELLOW   => "Party Seal Yellow.png",   :PARTY_RED      => "Party Seal Red.png",
-    :PARTY_PINK     => "Party Seal Pink.png",     :PARTY_ORANGE   => "Party Seal Orange.png",
-    :PARTY_WHITE    => "Party Seal White.png",    :PARTY_BLUE     => "Party Seal Blue.png",
+    :SPARKLE_BLACK    => "Sparkle Seal Black.png",    :SPARKLE_PURPLE   => "Sparkle Seal Purple.png",
+    :SPARKLE_GREY     => "Sparkle Seal Grey.png",     :SPARKLE_GREEN    => "Sparkle Seal Green.png",
+    :SPARKLE_YELLOW   => "Sparkle Seal Yellow.png",   :SPARKLE_RED      => "Sparkle Seal Red.png",
+    :SPARKLE_PINK     => "Sparkle Seal Pink.png",     :SPARKLE_ORANGE   => "Sparkle Seal Orange.png",
+    :SPARKLE_WHITE    => "Sparkle Seal White.png",    :SPARKLE_BLUE     => "Sparkle Seal Blue.png",
     :FLOWER_BLACK   => "Flower Seal Black.png",   :FLOWER_PURPLE  => "Flower Seal Purple.png",
     :FLOWER_GREY    => "Flower Seal Grey.png",    :FLOWER_GREEN   => "Flower Seal Green.png",
     :FLOWER_YELLOW  => "Flower Seal Yellow.png",  :FLOWER_RED     => "Flower Seal Red.png",
@@ -366,7 +374,7 @@ module BallSealsKIF
     :FIRE     => :FIRE_BLACK,
     :RING     => :ELECTRIC_PURPLE,
     :DROPLET  => :BUBBLE_GREY,
-    :CONFETTI => :PARTY_BLACK,
+    :CONFETTI => :SPARKLE_BLACK,
     :BEAM     => :ELECTRIC_GREY,
     :CLOUD    => :SMOKE_PURPLE,
     :FLASH    => :ELECTRIC_GREY,
@@ -391,14 +399,14 @@ module BallSealsKIF
     :STAR_I   => :STAR_WHITE,     :STAR_J   => :STAR_BLUE,
     :LINE_A   => :SMOKE_BLACK,    :LINE_B   => :SMOKE_PURPLE,
     :LINE_C   => :SMOKE_GREY,     :LINE_D   => :SMOKE_GREEN,
-    :LINE_E   => :SMOKE_BLACK,    :LINE_F   => :SMOKE_PURPLE,
-    :LINE_G   => :SMOKE_GREY,     :LINE_H   => :SMOKE_GREEN,
-    :LINE_I   => :SMOKE_BLACK,    :LINE_J   => :SMOKE_PURPLE,
+    :LINE_E   => :SMOKE_YELLOW,   :LINE_F   => :SMOKE_RED,
+    :LINE_G   => :SMOKE_PINK,     :LINE_H   => :SMOKE_ORANGE,
+    :LINE_I   => :SMOKE_WHITE,    :LINE_J   => :SMOKE_BLUE,
     :SMOKE_A  => :SMOKE_BLACK,    :SMOKE_B  => :SMOKE_PURPLE,
     :SMOKE_C  => :SMOKE_GREY,     :SMOKE_D  => :SMOKE_GREEN,
-    :SMOKE_E  => :SMOKE_BLACK,    :SMOKE_F  => :SMOKE_PURPLE,
-    :SMOKE_G  => :SMOKE_GREY,     :SMOKE_H  => :SMOKE_GREEN,
-    :SMOKE_I  => :SMOKE_BLACK,    :SMOKE_J  => :SMOKE_PURPLE,
+    :SMOKE_E  => :SMOKE_YELLOW,   :SMOKE_F  => :SMOKE_RED,
+    :SMOKE_G  => :SMOKE_PINK,     :SMOKE_H  => :SMOKE_ORANGE,
+    :SMOKE_I  => :SMOKE_WHITE,    :SMOKE_J  => :SMOKE_BLUE,
     :SONG_A   => :SONG_BLACK,     :SONG_B   => :SONG_PURPLE,
     :SONG_C   => :SONG_GREY,      :SONG_D   => :SONG_GREEN,
     :SONG_E   => :SONG_YELLOW,    :SONG_F   => :SONG_RED,
@@ -409,11 +417,17 @@ module BallSealsKIF
     :FIRE_E   => :FIRE_YELLOW,    :FIRE_F   => :FIRE_RED,
     :FIRE_G   => :FIRE_PINK,      :FIRE_H   => :FIRE_ORANGE,
     :FIRE_I   => :FIRE_WHITE,     :FIRE_J   => :FIRE_BLUE,
-    :PARTY_A  => :PARTY_BLACK,    :PARTY_B  => :PARTY_PURPLE,
-    :PARTY_C  => :PARTY_GREY,     :PARTY_D  => :PARTY_GREEN,
-    :PARTY_E  => :PARTY_YELLOW,   :PARTY_F  => :PARTY_RED,
-    :PARTY_G  => :PARTY_PINK,     :PARTY_H  => :PARTY_ORANGE,
-    :PARTY_I  => :PARTY_WHITE,    :PARTY_J  => :PARTY_BLUE,
+    :PARTY_A  => :SPARKLE_BLACK,    :PARTY_B  => :SPARKLE_PURPLE,
+    :PARTY_C  => :SPARKLE_GREY,     :PARTY_D  => :SPARKLE_GREEN,
+    :PARTY_E  => :SPARKLE_YELLOW,   :PARTY_F  => :SPARKLE_RED,
+    :PARTY_G  => :SPARKLE_PINK,     :PARTY_H  => :SPARKLE_ORANGE,
+    :PARTY_I  => :SPARKLE_WHITE,    :PARTY_J  => :SPARKLE_BLUE,
+    # Old Party_* symbols (pre-Sparkle rename)
+    :PARTY_BLACK   => :SPARKLE_BLACK,   :PARTY_PURPLE  => :SPARKLE_PURPLE,
+    :PARTY_GREY    => :SPARKLE_GREY,    :PARTY_GREEN   => :SPARKLE_GREEN,
+    :PARTY_YELLOW  => :SPARKLE_YELLOW,  :PARTY_RED     => :SPARKLE_RED,
+    :PARTY_PINK    => :SPARKLE_PINK,    :PARTY_ORANGE  => :SPARKLE_ORANGE,
+    :PARTY_WHITE   => :SPARKLE_WHITE,   :PARTY_BLUE    => :SPARKLE_BLUE,
     :FLORA_A  => :FLOWER_BLACK,   :FLORA_B  => :FLOWER_PURPLE,
     :FLORA_C  => :FLOWER_GREY,    :FLORA_D  => :FLOWER_GREEN,
     :FLORA_E  => :FLOWER_YELLOW,  :FLORA_F  => :FLOWER_RED,
@@ -1006,7 +1020,8 @@ module BallSealsKIF
   # Burst delay (in frames) added when Ghost Classic+ UI is detected.
   # Ghost's vanilla scene opens the pokéball slightly later than EBDX,
   # so the seal burst needs a matching stagger to stay in sync.
-  GHOST_BURST_DELAY = 12
+  # 20 frames ≈ 1 second at 20fps for better timing alignment.
+  GHOST_BURST_DELAY = 20
 
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.

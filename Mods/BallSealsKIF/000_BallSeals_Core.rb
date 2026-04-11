@@ -471,8 +471,15 @@ module BallSealsKIF
     @seal_overlay_vp
   rescue => e
     log("seal_overlay_viewport ERROR: #{e.class}: #{e.message}")
-    # Fallback: try once more without caching
-    Viewport.new(0, 0, Graphics.width, Graphics.height)
+    # Fallback: create and cache a viewport with the correct z so seal
+    # rendering is still on top even after an error.
+    begin
+      @seal_overlay_vp = Viewport.new(0, 0, Graphics.width, Graphics.height)
+      @seal_overlay_vp.z = SEAL_OVERLAY_Z
+    rescue
+      @seal_overlay_vp = nil
+    end
+    @seal_overlay_vp
   end
 
   def self.dispose_seal_overlay_viewport

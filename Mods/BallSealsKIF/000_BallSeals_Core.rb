@@ -8,7 +8,7 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
   begin
     PluginManager.register({
       :name    => "Ball Seals",
-      :version => "0.4.0",
+      :version => "0.5.0",
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
@@ -22,7 +22,7 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.4.0"
+  MOD_VERSION = "0.5.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8
@@ -453,6 +453,125 @@ module BallSealsKIF
   @dynamic_seal_defs ||= []
   @dynamic_seal_icon_files ||= {}
   @seal_overlay_vp = nil
+  @sprite_bounds_cache ||= {}
+
+  # ── Sprite bounds detection ──────────────────────────────────────
+  # Scans a bitmap's alpha channel to find the non-transparent bounding
+  # box.  Returns { :top => y, :bottom => y, :left => x, :right => x,
+  # :visible_height => h, :visible_width => w } or nil if fully
+  # transparent.  The scan is O(w*h) but each species is only scanned
+  # once and the result is cached in @sprite_bounds_cache.
+
+  # Default visible height used when the species sprite cannot be loaded
+  # or the bounding-box scan finds nothing.
+  DEFAULT_SPRITE_VISIBLE_HEIGHT = 64
+
+  def self.compute_sprite_visible_bounds(bitmap)
+    return nil if !bitmap || (bitmap.respond_to?(:disposed?) && bitmap.disposed?)
+    w = bitmap.width
+    h = bitmap.height
+    return nil if w <= 0 || h <= 0
+    top    = h
+    bottom = 0
+    left   = w
+    right  = 0
+    (0...h).each do |py|
+      (0...w).each do |px|
+        pixel = bitmap.get_pixel(px, py)
+        next if pixel.alpha == 0
+        top    = py if py < top
+        bottom = py if py > bottom
+        left   = px if px < left
+        right  = px if px > right
+      end
+    end
+    return nil if top > bottom  # fully transparent
+    {
+      :top            => top,
+      :bottom         => bottom,
+      :left           => left,
+      :right          => right,
+      :visible_height => (bottom - top + 1),
+      :visible_width  => (right - left + 1)
+    }
+  rescue => e
+    log("compute_sprite_visible_bounds ERROR: #{e.class}: #{e.message}")
+    nil
+  end
+
+  # Returns the visible (non-transparent) height of a Pokémon's front
+  # sprite in pixels.  Loads the species sprite bitmap independently of
+  # the battler sprite timing (which may not be positioned yet) and
+  # caches the result per species so the alpha-scan only runs once.
+  def self.species_sprite_height(pkmn)
+    return DEFAULT_SPRITE_VISIBLE_HEIGHT if !pkmn
+    # Determine species key for caching
+    species_key = nil
+    begin
+      if pkmn.respond_to?(:species)
+        species_key = pkmn.species
+      elsif pkmn.respond_to?(:speciesName)
+        species_key = pkmn.speciesName.to_sym
+      end
+    rescue
+    end
+    return DEFAULT_SPRITE_VISIBLE_HEIGHT if !species_key
+    # Check cache first
+    return @sprite_bounds_cache[species_key][:visible_height] if @sprite_bounds_cache[species_key]
+    # Try to load the species front sprite via Essentials API
+    bmp = nil
+    begin
+      if defined?(GameData) && defined?(GameData::Species) &&
+         GameData::Species.respond_to?(:front_sprite_filename)
+        path = GameData::Species.front_sprite_filename(pkmn.species,
+                 (pkmn.respond_to?(:form)  ? pkmn.form  : nil),
+                 (pkmn.respond_to?(:gender) ? pkmn.gender : nil),
+                 (pkmn.respond_to?(:shiny?) ? pkmn.shiny? : false))
+        bmp = Bitmap.new(path) if path
+      elsif defined?(pbPokemonBitmapFile)
+        # Essentials v19 fallback
+        path = pbPokemonBitmapFile(pkmn)
+        bmp = Bitmap.new(path) if path
+      end
+    rescue => e
+      log("species_sprite_height load ERROR for #{species_key}: #{e.class}: #{e.message}")
+    end
+    if bmp && (!bmp.respond_to?(:disposed?) || !bmp.disposed?)
+      bounds = compute_sprite_visible_bounds(bmp)
+      bmp.dispose
+      if bounds
+        @sprite_bounds_cache[species_key] = bounds
+        log("DBG: Cached sprite bounds for #{species_key}: visible_height=#{bounds[:visible_height]}") if $DEBUG
+        return bounds[:visible_height]
+      end
+    end
+    # If loading/scanning failed, cache the default so we don't retry
+    @sprite_bounds_cache[species_key] = { :visible_height => DEFAULT_SPRITE_VISIBLE_HEIGHT }
+    DEFAULT_SPRITE_VISIBLE_HEIGHT
+  rescue => e
+    log("species_sprite_height ERROR: #{e.class}: #{e.message}")
+    DEFAULT_SPRITE_VISIBLE_HEIGHT
+  end
+
+  # Returns full cached bounds hash for a species, or nil if not yet
+  # computed.  Call species_sprite_height(pkmn) to populate the cache.
+  def self.species_sprite_bounds(pkmn)
+    species_key = nil
+    begin
+      species_key = pkmn.species if pkmn && pkmn.respond_to?(:species)
+    rescue
+    end
+    return nil if !species_key
+    @sprite_bounds_cache[species_key]
+  rescue
+    nil
+  end
+
+  # Clears the sprite bounds cache.  Called from init_battle so that
+  # sprite data is always fresh for each battle session.
+  def self.clear_sprite_bounds_cache
+    @sprite_bounds_cache = {}
+  end
 
   # ── Seal overlay viewport ──────────────────────────────────────────
   # A dedicated full-screen viewport with a very high z-value so seal
@@ -873,7 +992,7 @@ module BallSealsKIF
 
   def self.enqueue_capsule_for_pokemon(pkmn, idx_battler = nil)
     cap = capsule_for_pokemon(pkmn)
-    @replacement_queue << { :cap => cap, :idx_battler => idx_battler }
+    @replacement_queue << { :cap => cap, :idx_battler => idx_battler, :pkmn => pkmn }
   end
 
   def self.clear_replacement_queue
@@ -1111,8 +1230,13 @@ module BallSealsKIF
       count = style[4] || 10
       grav  = style[5] || 0.12
       spin  = style[6] || 0.10
-      ox = ((pl[:x].to_f - 0.5) * 393).to_i
-      oy = ((pl[:y].to_f - 0.5) * 306).to_i
+      # Map normalised 0..1 placement coords to pixel offsets from burst
+      # centre.  Uses 3/4 of the screen dimensions as the spread area so
+      # seals fan out proportionally on any resolution.
+      spread_w = (Graphics.width  * 0.75).to_i
+      spread_h = (Graphics.height * 0.75).to_i
+      ox = ((pl[:x].to_f - 0.5) * spread_w).to_i
+      oy = ((pl[:y].to_f - 0.5) * spread_h).to_i
       sp = Sprite.new(overlay)
       sp.bitmap = bmp
       sp.ox = bmp.width / 2

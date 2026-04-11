@@ -17,7 +17,8 @@ module BallSealsKIF
     sprites = scene.instance_variable_get(:@sprites) rescue nil
     vp      = resolve_test_viewport(scene)
     return if !vp
-    burst_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : 0
+    base_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : 0
+    ball_index = 0
     send_outs.each do |pair|
       idxBattler = pair[0]
       pkmn       = pair[1]
@@ -32,8 +33,12 @@ module BallSealsKIF
       if slot >= 1
         y -= (Graphics.height * 0.06).to_i
       end
+      # Stagger each successive pokeball's seal burst so they animate
+      # sequentially rather than all at once.
+      burst_delay = base_delay + (ball_index * MULTI_BALL_STAGGER)
       start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
       log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
+      ball_index += 1
     end
   rescue => e
     log("trigger_vanilla_burst ERROR: #{e.class}: #{e.message}")
@@ -235,9 +240,13 @@ module BallSealsKIF
           rescue => e
             BallSealsKIF.log("EBBallBurst slot offset ERROR: #{e.class}: #{e.message}")
           end
-          BallSealsKIF.log("DBG: Replacing vanilla EBBallBurst with capsule burst at (#{x},#{burst_y})")
+          # Stagger each successive pokeball's seal burst so they animate
+          # sequentially rather than all at once.
+          ball_idx = entry[:ball_index] || 0
+          stagger_delay = ball_idx * BallSealsKIF::MULTI_BALL_STAGGER
+          BallSealsKIF.log("DBG: Replacing vanilla EBBallBurst with capsule burst at (#{x},#{burst_y}) stagger=#{stagger_delay}")
           # Uses the seal icon images for pokeball opening particles
-          BallSealsKIF.start_capsule_burst_on_viewport(viewport, x, burst_y, cap)
+          BallSealsKIF.start_capsule_burst_on_viewport(viewport, x, burst_y, cap, stagger_delay)
           return
         end
         @bskif_dummy = false

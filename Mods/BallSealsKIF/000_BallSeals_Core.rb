@@ -452,6 +452,38 @@ module BallSealsKIF
   @menu_ensure_calls ||= 0
   @dynamic_seal_defs ||= []
   @dynamic_seal_icon_files ||= {}
+  @seal_overlay_vp = nil
+
+  # ── Seal overlay viewport ──────────────────────────────────────────
+  # A dedicated full-screen viewport with a very high z-value so seal
+  # animations always render on top of Pokémon sprites, regardless of
+  # which viewport the battler sprite lives on (EBDX, Ghost Classic+,
+  # vanilla Essentials, etc.).  Created lazily on first use and disposed
+  # automatically once all active effects have finished.
+  SEAL_OVERLAY_Z = 99999
+
+  def self.seal_overlay_viewport
+    if @seal_overlay_vp && !@seal_overlay_vp.disposed?
+      return @seal_overlay_vp
+    end
+    @seal_overlay_vp = Viewport.new(0, 0, Graphics.width, Graphics.height)
+    @seal_overlay_vp.z = SEAL_OVERLAY_Z
+    @seal_overlay_vp
+  rescue => e
+    log("seal_overlay_viewport ERROR: #{e.class}: #{e.message}")
+    # Fallback: try once more without caching
+    Viewport.new(0, 0, Graphics.width, Graphics.height)
+  end
+
+  def self.dispose_seal_overlay_viewport
+    if @seal_overlay_vp && !@seal_overlay_vp.disposed?
+      @seal_overlay_vp.dispose
+    end
+    @seal_overlay_vp = nil
+  rescue => e
+    log("dispose_seal_overlay_viewport ERROR: #{e.class}: #{e.message}")
+    @seal_overlay_vp = nil
+  end
 
   # ── Helpers ───────────────────────────────────────────────────────
 
@@ -1049,7 +1081,16 @@ module BallSealsKIF
 
   def self.start_capsule_burst_on_viewport(viewport, x, y, cap, burst_delay = 0)
     return if !cap || !cap[:placements] || cap[:placements].empty?
-    return if !viewport || (viewport.respond_to?(:disposed?) && viewport.disposed?)
+    # Use a dedicated overlay viewport so seal sprites always render on
+    # top of Pokémon sprites regardless of which viewport the battler
+    # is drawn on (EBDX, Ghost Classic+, vanilla Essentials, etc.).
+    # The caller's viewport is only used as a liveness check — if it is
+    # disposed the battle scene is gone and we should not draw anything.
+    if viewport && viewport.respond_to?(:disposed?) && viewport.disposed?
+      return
+    end
+    overlay = seal_overlay_viewport
+    return if !overlay || (overlay.respond_to?(:disposed?) && overlay.disposed?)
     # Sort placements by x-position so the left-to-right GUI arrangement
     # is preserved as the display/animation order during battle.
     sorted = cap[:placements].sort_by { |pl| pl[:x].to_f }
@@ -1065,7 +1106,7 @@ module BallSealsKIF
       spin  = style[6] || 0.10
       ox = ((pl[:x].to_f - 0.5) * 393).to_i
       oy = ((pl[:y].to_f - 0.5) * 306).to_i
-      sp = Sprite.new(viewport)
+      sp = Sprite.new(overlay)
       sp.bitmap = bmp
       sp.ox = bmp.width / 2
       sp.oy = bmp.height / 2
@@ -1087,7 +1128,7 @@ module BallSealsKIF
       # :hold keeps seals at full opacity for ~2 seconds (40 frames at 20fps)
       # before the fade-out begins.
       started = burst_delay <= 0
-      @active_fx << { :vp => viewport, :frames => 38, :delay => burst_delay,
+      @active_fx << { :vp => overlay, :frames => 38, :delay => burst_delay,
                       :hold => 40, :started => started, :particles => particles }
       # Make visible immediately only when there is no burst delay
       if started
@@ -1095,7 +1136,7 @@ module BallSealsKIF
       end
     end
     safe_play_se("Pkmn send out")
-    log("DBG: Started capsule burst with #{cap[:placements].length} placements at (#{x},#{y})")
+    log("DBG: Started capsule burst with #{cap[:placements].length} placements at (#{x},#{y}) on overlay viewport z=#{SEAL_OVERLAY_Z}")
   rescue => e
     log("start_capsule_burst_on_viewport ERROR: #{e.class}: #{e.message}")
   end
@@ -1155,6 +1196,9 @@ module BallSealsKIF
       end
     end
     @active_fx = keep
+    # When all seal effects have finished, dispose the overlay viewport
+    # so it does not linger and interfere with other scenes.
+    dispose_seal_overlay_viewport if keep.empty?
   rescue => e
     log("update_effects ERROR: #{e.class}: #{e.message}")
   end

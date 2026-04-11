@@ -274,6 +274,9 @@ module BallSealsKIF
   def self.init_battle
     # Reset Ghost detection cache so a fresh check runs every init
     @ghost_classic_detected = nil
+    # Dispose any leftover seal overlay viewport from a previous battle
+    # so each battle starts with a clean slate.
+    dispose_seal_overlay_viewport
     install_sendout_hooks
     install_burst_replacement_hook
     if ghost_classic_installed?

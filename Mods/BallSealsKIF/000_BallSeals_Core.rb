@@ -1179,6 +1179,19 @@ module BallSealsKIF
   # with Ghost's ball-open animation.
   GHOST_BURST_DELAY = 50
 
+  # Percentage of screen height to raise (subtract from Y) player-side
+  # seal burst animations when Ghost Classic+ UI is detected.  Ghost's
+  # battle layout positions sprites differently, causing seal animations
+  # to overlap with the Pokémon more than in EBDX.  20% lift keeps the
+  # seals visually above the battler sprites.
+  GHOST_CLASSIC_Y_RAISE_PCT = 0.20
+
+  # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
+  # lower by 20% since opponent sprites are above the player.  This
+  # applies to both Ghost Classic+ and EBDX.  Currently only player-side
+  # seal bursts are displayed; opponent-side support is not yet wired up.
+  # OPPONENT_Y_LOWER_PCT = 0.20
+
   # Per-pokeball stagger delay (in frames) when multiple pokeballs
   # open at once (e.g. doubles/triples).  The first pokeball's seals
   # play immediately; each subsequent pokeball is delayed by this

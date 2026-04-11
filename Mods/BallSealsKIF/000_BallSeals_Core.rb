@@ -269,17 +269,6 @@ module BallSealsKIF
     [:COFFIN_ORANGE,  "Coffin Seal Orange",  Color.new(255,160, 30,220),  6, 16, 0.14, 0.06],
     [:COFFIN_WHITE,   "Coffin Seal White",   Color.new(240,240,240,220),  6, 18, 0.14, 0.06],
     [:COFFIN_BLUE,    "Coffin Seal Blue",    Color.new( 50,120,240,220),  6, 20, 0.14, 0.06],
-    # Fist Seals (punching fist shape, 10 colors — new)
-    [:FIST_BLACK,    "Fist Seal Black",    Color.new( 30, 30, 30,220),  6,  2, 0.16, 0.10],
-    [:FIST_PURPLE,   "Fist Seal Purple",   Color.new(140, 40,180,220),  6,  4, 0.16, 0.10],
-    [:FIST_GREY,     "Fist Seal Grey",     Color.new(150,150,150,220),  6,  6, 0.16, 0.10],
-    [:FIST_GREEN,    "Fist Seal Green",    Color.new( 40,190, 60,220),  6,  8, 0.16, 0.10],
-    [:FIST_YELLOW,   "Fist Seal Yellow",   Color.new(255,220, 30,220),  6, 10, 0.16, 0.10],
-    [:FIST_RED,      "Fist Seal Red",      Color.new(230, 40, 40,220),  6, 12, 0.16, 0.10],
-    [:FIST_PINK,     "Fist Seal Pink",     Color.new(255,120,180,220),  6, 14, 0.16, 0.10],
-    [:FIST_ORANGE,   "Fist Seal Orange",   Color.new(255,160, 30,220),  6, 16, 0.16, 0.10],
-    [:FIST_WHITE,    "Fist Seal White",    Color.new(240,240,240,220),  6, 18, 0.16, 0.10],
-    [:FIST_BLUE,     "Fist Seal Blue",     Color.new( 50,120,240,220),  6, 20, 0.16, 0.10]
   ]
 
   # ── Icon file mapping (Icons/ folder — used for both GUI and battle) ─
@@ -348,12 +337,7 @@ module BallSealsKIF
     :COFFIN_GREY    => "Coffin Seal Grey.png",    :COFFIN_GREEN   => "Coffin Seal Green.png",
     :COFFIN_YELLOW  => "Coffin Seal Yellow.png",  :COFFIN_RED     => "Coffin Seal Red.png",
     :COFFIN_PINK    => "Coffin Seal Pink.png",    :COFFIN_ORANGE  => "Coffin Seal Orange.png",
-    :COFFIN_WHITE   => "Coffin Seal White.png",   :COFFIN_BLUE    => "Coffin Seal Blue.png",
-    :FIST_BLACK     => "Fist Seal Black.png",     :FIST_PURPLE    => "Fist Seal Purple.png",
-    :FIST_GREY      => "Fist Seal Grey.png",      :FIST_GREEN     => "Fist Seal Green.png",
-    :FIST_YELLOW    => "Fist Seal Yellow.png",    :FIST_RED       => "Fist Seal Red.png",
-    :FIST_PINK      => "Fist Seal Pink.png",      :FIST_ORANGE    => "Fist Seal Orange.png",
-    :FIST_WHITE     => "Fist Seal White.png",     :FIST_BLUE      => "Fist Seal Blue.png"
+    :COFFIN_WHITE   => "Coffin Seal White.png",   :COFFIN_BLUE    => "Coffin Seal Blue.png"
   }
 
   # NOTE: The Animations/ folder has been merged into Icons/.  Battle
@@ -452,7 +436,13 @@ module BallSealsKIF
     :BAT_C    => :BAT_GREY,       :BAT_D    => :BAT_GREEN,
     :BAT_E    => :BAT_YELLOW,     :BAT_F    => :BAT_RED,
     :BAT_G    => :BAT_PINK,       :BAT_H    => :BAT_ORANGE,
-    :BAT_I    => :BAT_WHITE,      :BAT_J    => :BAT_BLUE
+    :BAT_I    => :BAT_WHITE,      :BAT_J    => :BAT_BLUE,
+    # Old Fist_* symbols (removed — map to Star seals as closest visual match)
+    :FIST_BLACK   => :STAR_BLACK,   :FIST_PURPLE  => :STAR_PURPLE,
+    :FIST_GREY    => :STAR_GREY,    :FIST_GREEN   => :STAR_GREEN,
+    :FIST_YELLOW  => :STAR_YELLOW,  :FIST_RED     => :STAR_RED,
+    :FIST_PINK    => :STAR_PINK,    :FIST_ORANGE  => :STAR_ORANGE,
+    :FIST_WHITE   => :STAR_WHITE,   :FIST_BLUE    => :STAR_BLUE
   }
 
   @bitmaps ||= {}
@@ -847,13 +837,20 @@ module BallSealsKIF
     @replacement_queue << { :cap => cap, :idx_battler => idx_battler }
   end
 
-  def self.clear_replacement_queue; @replacement_queue = []; end
+  def self.clear_replacement_queue
+    @replacement_queue = []
+    @ebdx_ball_index = 0
+  end
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
   def self.consume_replacement_capsule
     return nil if @replacement_queue.empty?
     entry = @replacement_queue.shift
     # Support both old (bare capsule) and new (hash with :cap/:idx_battler) formats
-    entry.is_a?(Hash) && entry.key?(:cap) ? entry : { :cap => entry, :idx_battler => nil }
+    result = entry.is_a?(Hash) && entry.key?(:cap) ? entry : { :cap => entry, :idx_battler => nil }
+    # Track ball order for staggered animation timing in EBDX
+    result[:ball_index] = @ebdx_ball_index || 0
+    @ebdx_ball_index = (@ebdx_ball_index || 0) + 1
+    result
   end
 
   # ── Asset path helpers ────────────────────────────────────────────
@@ -1023,6 +1020,13 @@ module BallSealsKIF
   # 50 frames = 2.5 seconds at 20fps for better timing alignment
   # with Ghost's ball-open animation.
   GHOST_BURST_DELAY = 50
+
+  # Per-pokeball stagger delay (in frames) when multiple pokeballs
+  # open at once (e.g. doubles/triples).  The first pokeball's seals
+  # play immediately; each subsequent pokeball is delayed by this
+  # many additional frames so they animate sequentially.
+  # 20 frames ≈ 1 second at 20fps — enough separation to be visible.
+  MULTI_BALL_STAGGER = 20
 
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.

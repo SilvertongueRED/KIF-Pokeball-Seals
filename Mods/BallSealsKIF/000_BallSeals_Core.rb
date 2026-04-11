@@ -1020,8 +1020,9 @@ module BallSealsKIF
   # Burst delay (in frames) added when Ghost Classic+ UI is detected.
   # Ghost's vanilla scene opens the pokéball slightly later than EBDX,
   # so the seal burst needs a matching stagger to stay in sync.
-  # 20 frames = 1 second at 20fps for better timing alignment.
-  GHOST_BURST_DELAY = 20
+  # 50 frames = 2.5 seconds at 20fps (1s base + 1.5s additional delay)
+  # for better timing alignment with Ghost's ball-open animation.
+  GHOST_BURST_DELAY = 50
 
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.

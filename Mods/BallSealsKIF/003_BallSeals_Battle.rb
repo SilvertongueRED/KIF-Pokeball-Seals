@@ -25,7 +25,7 @@ module BallSealsKIF
       next if battle && battle.respond_to?(:opposes?) && battle.opposes?(idxBattler)
       cap = capsule_for_pokemon(pkmn)
       next if !cap || !cap[:placements] || cap[:placements].empty?
-      x, y = player_battler_burst_pos(scene, sprites, idxBattler)
+      x, y = player_battler_burst_pos(scene, sprites, idxBattler, pkmn)
       # In doubles, the right-side pokemon (slot >= 1) gets its seal burst
       # lowered by 6% of screen height to prevent overlap with the left pokemon.
       slot = ((idxBattler || 0) / 2)
@@ -48,13 +48,29 @@ module BallSealsKIF
   # ball-open burst.  The hook fires BEFORE pbSendOutBattlers, so the
   # sprite may still be at the RGSS default (0,0) or off-screen.
   # We try several sources and fall back to a safe default.
-  def self.player_battler_burst_pos(scene, sprites, idxBattler)
+  #
+  # The optional +pkmn+ parameter is used to query the species' visible
+  # sprite height (via alpha-channel bounding box scan) so the seal
+  # burst is placed above the Pokémon sprite rather than at a hardcoded
+  # offset.  The species bitmap is loaded independently of the battler
+  # sprite's timing, so it works even before the send-out animation.
+  def self.player_battler_burst_pos(scene, sprites, idxBattler, pkmn = nil)
+    # Pre-compute the species-specific vertical offset.  This replaces
+    # the old hardcoded 64-pixel offset with the actual visible height
+    # of the Pokémon's front sprite (determined by alpha-channel scan).
+    sprite_h = pkmn ? species_sprite_height(pkmn) : DEFAULT_SPRITE_VISIBLE_HEIGHT
+    # Use half the visible height as the upward offset from the battler
+    # position so the burst appears centred above the sprite.
+    y_offset = [(sprite_h / 2.0).to_i, 16].max
+
     # 1) Battler sprite — only trust it when already on-screen.
     if sprites
       sprite = sprites["pokemon_#{idxBattler}"] rescue nil
       if sprite && !sprite.disposed? && sprite.x > 0 && sprite.y > 0
-        bmp_h = (sprite.bitmap ? sprite.bitmap.height : 0) rescue 0
-        sy = sprite.y - (bmp_h > 0 ? bmp_h / 2 : 64)
+        # Account for the sprite's zoom when computing visible height.
+        zoom_y = (sprite.respond_to?(:zoom_y) ? sprite.zoom_y : 1.0) rescue 1.0
+        zoom_y = 1.0 if zoom_y <= 0
+        sy = sprite.y - (y_offset * zoom_y).to_i
         if sy > 0 && sprite.x < Graphics.width && sy < Graphics.height
           return [sprite.x, sy]
         end
@@ -65,7 +81,7 @@ module BallSealsKIF
       if scene.respond_to?(:pbBattlerPosition)
         pos = scene.pbBattlerPosition(idxBattler)
         if pos.is_a?(Array) && pos.length >= 2 && pos[0].to_i > 0 && pos[1].to_i > 0
-          return [pos[0].to_i, pos[1].to_i - 64]
+          return [pos[0].to_i, pos[1].to_i - y_offset]
         end
       end
     rescue => e
@@ -77,7 +93,7 @@ module BallSealsKIF
     #    so dividing by 2 gives the slot number within the player's team.
     slot = ((idxBattler || 0) / 2) rescue 0
     dx   = slot * (Graphics.width / 8)
-    [Graphics.width / 4 + dx, (Graphics.height * 3) / 4]
+    [Graphics.width / 4 + dx, (Graphics.height * 3) / 4 - y_offset]
   end
 
   # Resolves the battle scene class across Essentials versions.
@@ -215,11 +231,13 @@ module BallSealsKIF
         entry = nil
         cap = nil
         idx_battler = nil
+        pkmn = nil
         begin
           if BallSealsKIF.replacement_queue_pending?
             entry = BallSealsKIF.consume_replacement_capsule
             cap = entry[:cap] if entry
             idx_battler = entry[:idx_battler] if entry
+            pkmn = entry[:pkmn] if entry
           end
         rescue => e
           BallSealsKIF.log("EBBallBurst initialize consume ERROR: #{e.class}: #{e.message}")
@@ -228,9 +246,19 @@ module BallSealsKIF
           @bskif_dummy = true
           @disposed = false
           @viewport = viewport
+          # Apply species-specific vertical offset so the seal burst
+          # appears above the Pokémon sprite, scaled to its actual
+          # visible height instead of a fixed pixel offset.
+          burst_y = y
+          begin
+            sprite_h = pkmn ? BallSealsKIF.species_sprite_height(pkmn) : BallSealsKIF::DEFAULT_SPRITE_VISIBLE_HEIGHT
+            y_offset = [(sprite_h / 2.0).to_i, 16].max
+            burst_y -= y_offset
+          rescue => e
+            BallSealsKIF.log("EBBallBurst sprite height ERROR: #{e.class}: #{e.message}")
+          end
           # In doubles, lower the right-side pokemon's seal burst by 6%
           # to prevent overlap with the left pokemon's seals.
-          burst_y = y
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
@@ -274,6 +302,8 @@ module BallSealsKIF
   def self.init_battle
     # Reset Ghost detection cache so a fresh check runs every init
     @ghost_classic_detected = nil
+    # Clear sprite bounds cache so species data is fresh each battle.
+    clear_sprite_bounds_cache
     # Dispose any leftover seal overlay viewport from a previous battle
     # so each battle starts with a clean slate.
     dispose_seal_overlay_viewport

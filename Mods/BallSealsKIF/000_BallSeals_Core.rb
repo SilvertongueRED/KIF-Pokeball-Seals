@@ -837,7 +837,10 @@ module BallSealsKIF
     @replacement_queue << { :cap => cap, :idx_battler => idx_battler }
   end
 
-  def self.clear_replacement_queue; @replacement_queue = []; @ebdx_ball_index = 0; end
+  def self.clear_replacement_queue
+    @replacement_queue = []
+    @ebdx_ball_index = 0
+  end
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
   def self.consume_replacement_capsule
     return nil if @replacement_queue.empty?

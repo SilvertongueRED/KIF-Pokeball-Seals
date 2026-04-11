@@ -460,7 +460,7 @@ module BallSealsKIF
   # which viewport the battler sprite lives on (EBDX, Ghost Classic+,
   # vanilla Essentials, etc.).  Created lazily on first use and disposed
   # automatically once all active effects have finished.
-  SEAL_OVERLAY_Z = 99999
+  SEAL_OVERLAY_Z = 999999
 
   def self.seal_overlay_viewport
     if @seal_overlay_vp && !@seal_overlay_vp.disposed?

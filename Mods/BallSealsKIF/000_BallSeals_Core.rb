@@ -541,7 +541,7 @@ module BallSealsKIF
       bmp.dispose
       if bounds
         @sprite_bounds_cache[species_key] = bounds
-        log("DBG: Cached sprite bounds for #{species_key}: visible_height=#{bounds[:visible_height]}")
+        log("DBG: Cached sprite bounds for #{species_key}: visible_height=#{bounds[:visible_height]}") if $DEBUG
         return bounds[:visible_height]
       end
     end

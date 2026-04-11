@@ -27,11 +27,11 @@ module BallSealsKIF
       next if !cap || !cap[:placements] || cap[:placements].empty?
       x, y = player_battler_burst_pos(scene, sprites, idxBattler)
       # In doubles, the right-side pokemon (slot >= 1) gets its seal burst
-      # raised by 6% of screen height to prevent overlap with the left pokemon.
+      # lowered by 6% of screen height to prevent overlap with the left pokemon.
       slot = ((idxBattler || 0) / 2)
       slot = 0 if !slot.is_a?(Integer)
       if slot >= 1
-        y -= (Graphics.height * 0.06).to_i
+        y += (Graphics.height * 0.06).to_i
       end
       # Stagger each successive pokeball's seal burst so they animate
       # sequentially rather than all at once.
@@ -228,14 +228,14 @@ module BallSealsKIF
           @bskif_dummy = true
           @disposed = false
           @viewport = viewport
-          # In doubles, raise the right-side pokemon's seal burst by 6%
+          # In doubles, lower the right-side pokemon's seal burst by 6%
           # to prevent overlap with the left pokemon's seals.
           burst_y = y
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
             if slot >= 1
-              burst_y -= (Graphics.height * 0.06).to_i
+              burst_y += (Graphics.height * 0.06).to_i
             end
           rescue => e
             BallSealsKIF.log("EBBallBurst slot offset ERROR: #{e.class}: #{e.message}")

@@ -29,11 +29,6 @@ module BallSealsKIF
   FX_SCALE = 3.0
   CANVAS_ICON_SIZE = 20
 
-  # When true, seal animations play to completion before the Pokémon
-  # send-out animation begins.  When false, seals and send-out play
-  # in parallel (original behavior).
-  SEALS_BEFORE_POKEMON = true
-
   # ── Seal list sorting ────────────────────────────────────────────
   # Persists for the session (across menu openings) but resets on
   # game restart.  :alpha = alphabetical, :recent = recently used first.
@@ -1011,7 +1006,6 @@ module BallSealsKIF
   def self.set_player_sendout_count(n); @player_sendout_count = n; end
   def self.player_sendout_count; @player_sendout_count || 0; end
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
-  def self.active_effects_pending?; @active_fx && !@active_fx.empty?; end
   def self.consume_replacement_capsule
     return nil if @replacement_queue.empty?
     entry = @replacement_queue.shift

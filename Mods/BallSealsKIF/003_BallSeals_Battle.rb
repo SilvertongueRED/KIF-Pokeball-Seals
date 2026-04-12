@@ -163,18 +163,6 @@ module BallSealsKIF
           rescue => e
             BallSealsKIF.log("playerBattlerSendOut queue ERROR: #{e.class}: #{e.message}")
           end
-          # If seals-before-pokemon mode is enabled, wait for all seal
-          # animations to complete before proceeding with the send-out.
-          if BallSealsKIF::SEALS_BEFORE_POKEMON
-            begin
-              while BallSealsKIF.active_effects_pending?
-                Graphics.update
-                Input.update rescue nil
-              end
-            rescue => e
-              BallSealsKIF.log("playerBattlerSendOut wait ERROR: #{e.class}: #{e.message}")
-            end
-          end
           ret = __bskif_playerBattlerSendOut(sendOuts, startBattle)
           begin
             BallSealsKIF.clear_replacement_queue
@@ -213,18 +201,6 @@ module BallSealsKIF
               rescue => e
                 BallSealsKIF.log("pbSendOutBattlers burst ERROR: #{e.class}: #{e.message}")
               end
-              # If seals-before-pokemon mode is enabled, wait for all seal
-              # animations to complete before proceeding with the send-out.
-              if BallSealsKIF::SEALS_BEFORE_POKEMON
-                begin
-                  while BallSealsKIF.active_effects_pending?
-                    Graphics.update
-                    Input.update rescue nil
-                  end
-                rescue => e
-                  BallSealsKIF.log("pbSendOutBattlers wait ERROR: #{e.class}: #{e.message}")
-                end
-              end
             end
             return __bskif_pbSendOutBattlers(sendOuts, startBattle)
           end
@@ -246,18 +222,6 @@ module BallSealsKIF
                 BallSealsKIF.trigger_vanilla_burst(self, [[idxBattler, pkmn]])
               rescue => e
                 BallSealsKIF.log("pbSendOut burst ERROR: #{e.class}: #{e.message}")
-              end
-              # If seals-before-pokemon mode is enabled, wait for all seal
-              # animations to complete before proceeding with the send-out.
-              if BallSealsKIF::SEALS_BEFORE_POKEMON
-                begin
-                  while BallSealsKIF.active_effects_pending?
-                    Graphics.update
-                    Input.update rescue nil
-                  end
-                rescue => e
-                  BallSealsKIF.log("pbSendOut wait ERROR: #{e.class}: #{e.message}")
-                end
               end
             end
             return __bskif_pbSendOut(idxBattler, pkmn)

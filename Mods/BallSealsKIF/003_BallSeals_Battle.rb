@@ -33,12 +33,12 @@ module BallSealsKIF
         y -= (Graphics.height * GHOST_CLASSIC_Y_RAISE_PCT).to_i
       end
       # In doubles, the right-side pokemon (slot >= 1) gets its seal burst
-      # raised by 15% of screen height to prevent overlap with the left pokemon.
+      # raised by 5% of screen height to prevent overlap with the left pokemon.
       # Only applied when Ghost Classic+ UI is active.
       slot = ((idxBattler || 0) / 2)
       slot = 0 if !slot.is_a?(Integer)
       if slot >= 1 && ghost_classic_installed?
-        y -= (Graphics.height * 0.15).to_i
+        y -= (Graphics.height * 0.05).to_i
       end
       # Stagger each successive pokeball's seal burst so they animate
       # sequentially rather than all at once.
@@ -265,17 +265,17 @@ module BallSealsKIF
             BallSealsKIF.log("EBBallBurst sprite height ERROR: #{e.class}: #{e.message}")
           end
           # In doubles, adjust right-side pokemon's seal burst to prevent overlap.
-          # With Ghost Classic+: raise by 15%. Without Ghost (EBDX only): lower by 2%.
+          # With Ghost Classic+: raise by 5%. Without Ghost (EBDX only): lower by 6%.
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
             if slot >= 1
               if BallSealsKIF.ghost_classic_installed?
-                # Ghost Classic+ active: raise right-side seal burst by 15%
-                burst_y -= (Graphics.height * 0.15).to_i
+                # Ghost Classic+ active: raise right-side seal burst by 5%
+                burst_y -= (Graphics.height * 0.05).to_i
               else
-                # EBDX only (no Ghost): lower right-side seal burst by 2%
-                burst_y += (Graphics.height * 0.02).to_i
+                # EBDX only (no Ghost): lower right-side seal burst by 6%
+                burst_y += (Graphics.height * 0.06).to_i
               end
             end
           rescue => e

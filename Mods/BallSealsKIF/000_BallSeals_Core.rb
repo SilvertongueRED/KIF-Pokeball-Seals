@@ -1187,9 +1187,9 @@ module BallSealsKIF
 
   # Burst delay (in frames) used when Ghost Classic+ is NOT present and
   # EBDX visuals are off (normal/vanilla battle UI).  Delays the seal
-  # animation by 2 seconds (40 frames at 20fps) so it syncs with when
+  # animation by 2.5 seconds (50 frames at 20fps) so it syncs with when
   # the pokéball actually opens on screen.
-  VANILLA_BURST_DELAY = 40
+  VANILLA_BURST_DELAY = 50
 
   # Percentage of screen height to raise (subtract from Y) player-side
   # seal burst animations when Ghost Classic+ UI is detected.  Ghost's
@@ -1201,9 +1201,17 @@ module BallSealsKIF
   # In doubles (2 player-side pokémon), shift the LEFT pokémon's seal
   # burst to the left by this percentage of screen width, and lower the
   # RIGHT pokémon's seal burst by this percentage of screen height.
-  # Applied for both Ghost Classic+ and EBDX doubles layouts.
+  # These are the base values used for Ghost Classic+ doubles layouts.
   DOUBLES_X_SHIFT_PCT = 0.03
   DOUBLES_Y_LOWER_PCT = 0.03
+
+  # EBDX-specific: shift the LEFT pokémon's seal burst to the left by
+  # 5% of screen width in doubles (larger shift than Ghost Classic+).
+  EBDX_DOUBLES_X_SHIFT_PCT = 0.05
+
+  # Ghost Classic+-specific: lower the RIGHT pokémon's seal burst by
+  # 2% of screen height in doubles (smaller drop than EBDX).
+  GHOST_DOUBLES_Y_LOWER_PCT = 0.02
 
   # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
   # lower by 20% since opponent sprites are above the player.  This

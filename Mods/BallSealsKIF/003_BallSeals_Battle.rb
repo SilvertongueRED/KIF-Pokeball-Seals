@@ -49,12 +49,12 @@ module BallSealsKIF
         y -= (Graphics.height * 0.05).to_i
       end
       # Ghost Classic+ doubles adjustments: shift the left pokémon's seal
-      # burst to the left by 3% and lower the right pokémon's by 3%.
+      # burst to the left by 3% and lower the right pokémon's by 2%.
       if is_doubles && ghost_classic_installed?
         if slot == 0
           x -= (Graphics.width * DOUBLES_X_SHIFT_PCT).to_i
         elsif slot >= 1
-          y += (Graphics.height * DOUBLES_Y_LOWER_PCT).to_i
+          y += (Graphics.height * GHOST_DOUBLES_Y_LOWER_PCT).to_i
         end
       end
       # Stagger each successive pokeball's seal burst so they animate
@@ -302,8 +302,8 @@ module BallSealsKIF
                 end
               end
               if slot == 0 && !BallSealsKIF.ghost_classic_installed?
-                # EBDX doubles (no Ghost): shift left pokémon's burst left by 3%
-                x -= (Graphics.width * BallSealsKIF::DOUBLES_X_SHIFT_PCT).to_i
+                # EBDX doubles (no Ghost): shift left pokémon's burst left by 5%
+                x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_X_SHIFT_PCT).to_i
               end
             end
           rescue => e

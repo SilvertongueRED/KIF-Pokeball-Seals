@@ -437,12 +437,12 @@ module BallSealsKIF
     :BAT_E    => :BAT_YELLOW,     :BAT_F    => :BAT_RED,
     :BAT_G    => :BAT_PINK,       :BAT_H    => :BAT_ORANGE,
     :BAT_I    => :BAT_WHITE,      :BAT_J    => :BAT_BLUE,
-    # Old Fist_* symbols (now restored as dedicated fist seal art)
-    :FIST_BLACK   => :FIST_SEAL_BLACK,   :FIST_PURPLE  => :FIST_SEAL_PURPLE,
-    :FIST_GREY    => :FIST_SEAL_GREY,    :FIST_GREEN   => :FIST_SEAL_GREEN,
-    :FIST_YELLOW  => :FIST_SEAL_YELLOW,  :FIST_RED     => :FIST_SEAL_RED,
-    :FIST_PINK    => :FIST_SEAL_PINK,    :FIST_ORANGE  => :FIST_SEAL_ORANGE,
-    :FIST_WHITE   => :FIST_SEAL_WHITE,   :FIST_BLUE    => :FIST_SEAL_BLUE
+    # Old Fist_* symbols (renamed to Fighting Seal art)
+    :FIST_BLACK   => :FIGHTING_SEAL_BLACK,   :FIST_PURPLE  => :FIGHTING_SEAL_PURPLE,
+    :FIST_GREY    => :FIGHTING_SEAL_GREY,    :FIST_GREEN   => :FIGHTING_SEAL_GREEN,
+    :FIST_YELLOW  => :FIGHTING_SEAL_YELLOW,  :FIST_RED     => :FIGHTING_SEAL_RED,
+    :FIST_PINK    => :FIGHTING_SEAL_PINK,    :FIST_ORANGE  => :FIGHTING_SEAL_ORANGE,
+    :FIST_WHITE   => :FIGHTING_SEAL_WHITE,   :FIST_BLUE    => :FIGHTING_SEAL_BLUE
   }
 
   ("A".."Z").each do |letter|
@@ -450,7 +450,27 @@ module BallSealsKIF
   end
   LEGACY_SEAL_MAP[:EXCLAMATION_MARK_SEAL] = :EXCLAMATION_MARK_SEAL_BLACK
   LEGACY_SEAL_MAP[:QUESTION_MARK_SEAL]    = :QUESTION_MARK_SEAL_BLACK
-  LEGACY_SEAL_MAP[:SNOW]                  = :SNOWFLAKE_SEAL_WHITE
+  LEGACY_SEAL_MAP[:SNOW]                  = :ICE_SEAL_WHITE
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_BLACK]  = :ICE_SEAL_BLACK
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_PURPLE] = :ICE_SEAL_PURPLE
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_GREY]   = :ICE_SEAL_GREY
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_GREEN]  = :ICE_SEAL_GREEN
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_YELLOW] = :ICE_SEAL_YELLOW
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_RED]    = :ICE_SEAL_RED
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_PINK]   = :ICE_SEAL_PINK
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_ORANGE] = :ICE_SEAL_ORANGE
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_WHITE]  = :ICE_SEAL_WHITE
+  LEGACY_SEAL_MAP[:SNOWFLAKE_SEAL_BLUE]   = :ICE_SEAL_BLUE
+  LEGACY_SEAL_MAP[:FIST_SEAL_BLACK]       = :FIGHTING_SEAL_BLACK
+  LEGACY_SEAL_MAP[:FIST_SEAL_PURPLE]      = :FIGHTING_SEAL_PURPLE
+  LEGACY_SEAL_MAP[:FIST_SEAL_GREY]        = :FIGHTING_SEAL_GREY
+  LEGACY_SEAL_MAP[:FIST_SEAL_GREEN]       = :FIGHTING_SEAL_GREEN
+  LEGACY_SEAL_MAP[:FIST_SEAL_YELLOW]      = :FIGHTING_SEAL_YELLOW
+  LEGACY_SEAL_MAP[:FIST_SEAL_RED]         = :FIGHTING_SEAL_RED
+  LEGACY_SEAL_MAP[:FIST_SEAL_PINK]        = :FIGHTING_SEAL_PINK
+  LEGACY_SEAL_MAP[:FIST_SEAL_ORANGE]      = :FIGHTING_SEAL_ORANGE
+  LEGACY_SEAL_MAP[:FIST_SEAL_WHITE]       = :FIGHTING_SEAL_WHITE
+  LEGACY_SEAL_MAP[:FIST_SEAL_BLUE]        = :FIGHTING_SEAL_BLUE
 
   @bitmaps ||= {}
   @active_fx ||= []
@@ -1245,9 +1265,12 @@ module BallSealsKIF
   EBDX_DOUBLES_X_SHIFT_PCT          = 0.04
   EBDX_DOUBLES_LEFT_EXTRA_SHIFT_PCT = 0.05
 
-  # Triples: raise the 3rd (rightmost) pokémon's seal burst by 9% of
+  # Triples: raise the 3rd (rightmost) pokémon's seal burst by 14% of
   # screen height.  Applies to all UIs (EBDX, Ghost Classic+, vanilla).
-  TRIPLES_THIRD_RAISE_PCT = 0.09
+  TRIPLES_THIRD_RAISE_PCT = 0.14
+  # EBDX triples: nudge the leftmost player's seal burst right by 3% of
+  # screen width to better match the three-Pokémon send-out layout.
+  EBDX_TRIPLES_LEFT_X_SHIFT_PCT = 0.03
 
   # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
   # lower by 20% since opponent sprites are above the player.  This

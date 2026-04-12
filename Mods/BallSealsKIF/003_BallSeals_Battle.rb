@@ -301,7 +301,8 @@ module BallSealsKIF
                 burst_y += (Graphics.height * BallSealsKIF::EBDX_DOUBLES_RIGHT_LOWER_PCT).to_i
               end
               if slot == 0
-                # EBDX doubles: shift left pokémon's burst left by 4%
+                # EBDX doubles (Ghost Classic not present — it disables EBDX):
+                # shift left pokémon's burst left by 4%
                 x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_X_SHIFT_PCT).to_i
               end
             end

@@ -289,21 +289,20 @@ module BallSealsKIF
             BallSealsKIF.log("EBBallBurst sprite height ERROR: #{e.class}: #{e.message}")
           end
           # In doubles, adjust seal burst positions to prevent overlap.
-          # EBDX visuals on (no Ghost): lower right by 5%, shift left
-          # pokémon's burst left by 4%.
+          # EBDX visuals on (no Ghost): shift left pokémon left by 4%,
+          # lower right by 5%.
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
             is_doubles = BallSealsKIF.player_sendout_count >= 2
             if is_doubles
-              if slot >= 1
+              if slot == 0
+                # EBDX doubles: shift left pokémon's burst left by 4%
+                # (Ghost Classic not present — it disables EBDX)
+                x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_X_SHIFT_PCT).to_i
+              elsif slot >= 1
                 # EBDX doubles: lower right-side seal burst by 5%
                 burst_y += (Graphics.height * BallSealsKIF::EBDX_DOUBLES_RIGHT_LOWER_PCT).to_i
-              end
-              if slot == 0
-                # EBDX doubles (Ghost Classic not present — it disables EBDX):
-                # shift left pokémon's burst left by 4%
-                x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_X_SHIFT_PCT).to_i
               end
             end
           rescue => e

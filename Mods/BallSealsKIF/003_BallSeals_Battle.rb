@@ -10,14 +10,22 @@ module BallSealsKIF
   # When Ghost Classic+ UI is detected the burst is staggered by
   # GHOST_BURST_DELAY frames so the seals appear in sync with Ghost's
   # slightly later ball-open timing.  When Ghost is absent (vanilla
-  # EBDX / standard scene) the burst fires immediately (delay 0).
+  # EBDX / standard scene) the burst is delayed by VANILLA_BURST_DELAY
+  # frames (2 seconds) to sync with the normal ball-open timing.
   def self.trigger_vanilla_burst(scene, send_outs)
     return if !send_outs || send_outs.empty?
     battle  = scene.instance_variable_get(:@battle)  rescue nil
     sprites = scene.instance_variable_get(:@sprites) rescue nil
     vp      = resolve_test_viewport(scene)
     return if !vp
-    base_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : 0
+    base_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : VANILLA_BURST_DELAY
+    # Count player-side pokémon for doubles detection.
+    player_count = 0
+    send_outs.each do |pair|
+      next if battle && battle.respond_to?(:opposes?) && battle.opposes?(pair[0])
+      player_count += 1
+    end
+    is_doubles = player_count >= 2
     ball_index = 0
     send_outs.each do |pair|
       idxBattler = pair[0]
@@ -39,6 +47,15 @@ module BallSealsKIF
       slot = 0 if !slot.is_a?(Integer)
       if slot >= 1 && ghost_classic_installed?
         y -= (Graphics.height * 0.05).to_i
+      end
+      # Ghost Classic+ doubles adjustments: shift the left pokémon's seal
+      # burst to the left by 3% and lower the right pokémon's by 3%.
+      if is_doubles && ghost_classic_installed?
+        if slot == 0
+          x -= (Graphics.width * DOUBLES_X_SHIFT_PCT).to_i
+        elsif slot >= 1
+          y += (Graphics.height * DOUBLES_Y_LOWER_PCT).to_i
+        end
       end
       # Stagger each successive pokeball's seal burst so they animate
       # sequentially rather than all at once.
@@ -126,14 +143,17 @@ module BallSealsKIF
         def playerBattlerSendOut(sendOuts, startBattle = false)
           begin
             BallSealsKIF.clear_replacement_queue
+            player_count = 0
             sendOuts.each do |pair|
               idxBattler = pair[0]
               pkmn = pair[1]
               next if @battle && @battle.respond_to?(:opposes?) && @battle.opposes?(idxBattler)
+              player_count += 1
               BallSealsKIF.enqueue_replacement_seals(nil)
               BallSealsKIF.enqueue_capsule_for_pokemon(pkmn, idxBattler)
             end
-            BallSealsKIF.log("DBG: Queued capsule replacements for #{sendOuts.length} sendouts")
+            BallSealsKIF.set_player_sendout_count(player_count)
+            BallSealsKIF.log("DBG: Queued capsule replacements for #{sendOuts.length} sendouts (#{player_count} player-side)")
           rescue => e
             BallSealsKIF.log("playerBattlerSendOut queue ERROR: #{e.class}: #{e.message}")
           end
@@ -264,18 +284,26 @@ module BallSealsKIF
           rescue => e
             BallSealsKIF.log("EBBallBurst sprite height ERROR: #{e.class}: #{e.message}")
           end
-          # In doubles, adjust right-side pokemon's seal burst to prevent overlap.
-          # With Ghost Classic+: raise by 5%. Without Ghost (EBDX only): lower by 6%.
+          # In doubles, adjust seal burst positions to prevent overlap.
+          # With Ghost Classic+: raise by 5%. Without Ghost (EBDX only):
+          # lower right-side by 3% and shift left-side to the left by 3%.
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
-            if slot >= 1
-              if BallSealsKIF.ghost_classic_installed?
-                # Ghost Classic+ active: raise right-side seal burst by 5%
-                burst_y -= (Graphics.height * 0.05).to_i
-              else
-                # EBDX only (no Ghost): lower right-side seal burst by 6%
-                burst_y += (Graphics.height * 0.06).to_i
+            is_doubles = BallSealsKIF.player_sendout_count >= 2
+            if is_doubles
+              if slot >= 1
+                if BallSealsKIF.ghost_classic_installed?
+                  # Ghost Classic+ active: raise right-side seal burst by 5%
+                  burst_y -= (Graphics.height * 0.05).to_i
+                else
+                  # EBDX only (no Ghost): lower right-side seal burst by 3%
+                  burst_y += (Graphics.height * BallSealsKIF::DOUBLES_Y_LOWER_PCT).to_i
+                end
+              end
+              if slot == 0 && !BallSealsKIF.ghost_classic_installed?
+                # EBDX doubles (no Ghost): shift left pokémon's burst left by 3%
+                x -= (Graphics.width * BallSealsKIF::DOUBLES_X_SHIFT_PCT).to_i
               end
             end
           rescue => e

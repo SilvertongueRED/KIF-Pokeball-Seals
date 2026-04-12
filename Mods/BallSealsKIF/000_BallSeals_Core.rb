@@ -998,7 +998,13 @@ module BallSealsKIF
   def self.clear_replacement_queue
     @replacement_queue = []
     @ebdx_ball_index = 0
+    @player_sendout_count = 0
   end
+
+  # Track total player-side pokémon being sent out so the EBBallBurst
+  # hook can detect doubles and apply positional adjustments.
+  def self.set_player_sendout_count(n); @player_sendout_count = n; end
+  def self.player_sendout_count; @player_sendout_count || 0; end
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
   def self.consume_replacement_capsule
     return nil if @replacement_queue.empty?
@@ -1179,12 +1185,25 @@ module BallSealsKIF
   # with Ghost's ball-open animation.
   GHOST_BURST_DELAY = 50
 
+  # Burst delay (in frames) used when Ghost Classic+ is NOT present and
+  # EBDX visuals are off (normal/vanilla battle UI).  Delays the seal
+  # animation by 2 seconds (40 frames at 20fps) so it syncs with when
+  # the pokéball actually opens on screen.
+  VANILLA_BURST_DELAY = 40
+
   # Percentage of screen height to raise (subtract from Y) player-side
   # seal burst animations when Ghost Classic+ UI is detected.  Ghost's
   # battle layout positions sprites differently, causing seal animations
   # to overlap with the Pokémon more than in EBDX.  20% lift keeps the
   # seals visually above the battler sprites.
   GHOST_CLASSIC_Y_RAISE_PCT = 0.20
+
+  # In doubles (2 player-side pokémon), shift the LEFT pokémon's seal
+  # burst to the left by this percentage of screen width, and lower the
+  # RIGHT pokémon's seal burst by this percentage of screen height.
+  # Applied for both Ghost Classic+ and EBDX doubles layouts.
+  DOUBLES_X_SHIFT_PCT = 0.03
+  DOUBLES_Y_LOWER_PCT = 0.03
 
   # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
   # lower by 20% since opponent sprites are above the player.  This

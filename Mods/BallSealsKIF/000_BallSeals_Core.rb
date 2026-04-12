@@ -1198,20 +1198,21 @@ module BallSealsKIF
   # seals visually above the battler sprites.
   GHOST_CLASSIC_Y_RAISE_PCT = 0.20
 
-  # In doubles (2 player-side pokémon), shift the LEFT pokémon's seal
-  # burst to the left by this percentage of screen width, and lower the
-  # RIGHT pokémon's seal burst by this percentage of screen height.
-  # These are the base values used for Ghost Classic+ doubles layouts.
-  DOUBLES_X_SHIFT_PCT = 0.03
-  DOUBLES_Y_LOWER_PCT = 0.03
+  # Ghost Classic+ doubles: raise LEFT pokémon's seal burst by 9% of
+  # screen height, lower RIGHT pokémon's seal burst by 3%.
+  GHOST_DOUBLES_LEFT_RAISE_PCT  = 0.09
+  GHOST_DOUBLES_RIGHT_LOWER_PCT = 0.03
 
-  # EBDX-specific: shift the LEFT pokémon's seal burst to the left by
-  # 5% of screen width in doubles (larger shift than Ghost Classic+).
-  EBDX_DOUBLES_X_SHIFT_PCT = 0.05
+  # Normal battle UI (EBDX off, no Ghost Classic+) doubles: raise LEFT
+  # pokémon's seal burst by 10% of screen height, raise RIGHT by 5%.
+  VANILLA_DOUBLES_LEFT_RAISE_PCT  = 0.10
+  VANILLA_DOUBLES_RIGHT_RAISE_PCT = 0.05
 
-  # Ghost Classic+-specific: lower the RIGHT pokémon's seal burst by
-  # 2% of screen height in doubles (smaller drop than EBDX).
-  GHOST_DOUBLES_Y_LOWER_PCT = 0.02
+  # EBDX visuals on (no Ghost Classic+) doubles: lower RIGHT pokémon's
+  # seal burst by 5% of screen height, shift LEFT pokémon left by 4%
+  # of screen width.
+  EBDX_DOUBLES_RIGHT_LOWER_PCT = 0.05
+  EBDX_DOUBLES_X_SHIFT_PCT     = 0.04
 
   # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
   # lower by 20% since opponent sprites are above the player.  This

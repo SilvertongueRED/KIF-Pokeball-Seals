@@ -1198,14 +1198,14 @@ module BallSealsKIF
   # seals visually above the battler sprites.
   GHOST_CLASSIC_Y_RAISE_PCT = 0.20
 
-  # Ghost Classic+ doubles: raise LEFT pokémon's seal burst by 9% of
+  # Ghost Classic+ doubles: raise LEFT pokémon's seal burst by 6% of
   # screen height, lower RIGHT pokémon's seal burst by 3%.
-  GHOST_DOUBLES_LEFT_RAISE_PCT  = 0.09
+  GHOST_DOUBLES_LEFT_RAISE_PCT  = 0.06
   GHOST_DOUBLES_RIGHT_LOWER_PCT = 0.03
 
   # Normal battle UI (EBDX off, no Ghost Classic+) doubles: raise LEFT
-  # pokémon's seal burst by 10% of screen height, raise RIGHT by 5%.
-  VANILLA_DOUBLES_LEFT_RAISE_PCT  = 0.10
+  # pokémon's seal burst by 6% of screen height, raise RIGHT by 5%.
+  VANILLA_DOUBLES_LEFT_RAISE_PCT  = 0.06
   VANILLA_DOUBLES_RIGHT_RAISE_PCT = 0.05
 
   # EBDX visuals on (no Ghost Classic+) doubles: lower RIGHT pokémon's

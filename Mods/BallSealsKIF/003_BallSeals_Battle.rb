@@ -19,13 +19,14 @@ module BallSealsKIF
     vp      = resolve_test_viewport(scene)
     return if !vp
     base_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : VANILLA_BURST_DELAY
-    # Count player-side pokémon for doubles detection.
+    # Count player-side pokémon for doubles/triples detection.
     player_count = 0
     send_outs.each do |pair|
       next if battle && battle.respond_to?(:opposes?) && battle.opposes?(pair[0])
       player_count += 1
     end
     is_doubles = player_count >= 2
+    is_triples = player_count >= 3
     ball_index = 0
     send_outs.each do |pair|
       idxBattler = pair[0]
@@ -40,7 +41,7 @@ module BallSealsKIF
       if ghost_classic_installed?
         y -= (Graphics.height * GHOST_CLASSIC_Y_RAISE_PCT).to_i
       end
-      # Doubles adjustments for player-side seal bursts.
+      # Doubles/triples adjustments for player-side seal bursts.
       slot = ((idxBattler || 0) / 2)
       slot = 0 if !slot.is_a?(Integer)
       if is_doubles
@@ -62,6 +63,10 @@ module BallSealsKIF
             y -= (Graphics.height * VANILLA_DOUBLES_RIGHT_RAISE_PCT).to_i
           end
         end
+      end
+      # Triples: raise the 3rd (rightmost) pokémon's seal burst by 9%.
+      if is_triples && slot == 2
+        y -= (Graphics.height * TRIPLES_THIRD_RAISE_PCT).to_i
       end
       # Stagger each successive pokeball's seal burst so they animate
       # sequentially rather than all at once.
@@ -290,13 +295,14 @@ module BallSealsKIF
           rescue => e
             BallSealsKIF.log("EBBallBurst sprite height ERROR: #{e.class}: #{e.message}")
           end
-          # In doubles, adjust seal burst positions to prevent overlap.
+          # In doubles/triples, adjust seal burst positions to prevent overlap.
           # EBDX visuals on (no Ghost): shift left pokémon left by 4%,
           # lower right by 5%.
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
             is_doubles = BallSealsKIF.player_sendout_count >= 2
+            is_triples = BallSealsKIF.player_sendout_count >= 3
             if is_doubles
               if slot == 0
                 # EBDX doubles: shift left pokémon's burst left by 4%
@@ -308,6 +314,10 @@ module BallSealsKIF
                 # EBDX doubles: lower right-side seal burst by 5%
                 burst_y += (Graphics.height * BallSealsKIF::EBDX_DOUBLES_RIGHT_LOWER_PCT).to_i
               end
+            end
+            # Triples: raise the 3rd (rightmost) pokémon's seal burst by 9%.
+            if is_triples && slot == 2
+              burst_y -= (Graphics.height * BallSealsKIF::TRIPLES_THIRD_RAISE_PCT).to_i
             end
           rescue => e
             BallSealsKIF.log("EBBallBurst slot offset ERROR: #{e.class}: #{e.message}")

@@ -1217,6 +1217,10 @@ module BallSealsKIF
   EBDX_DOUBLES_X_SHIFT_PCT          = 0.04
   EBDX_DOUBLES_LEFT_EXTRA_SHIFT_PCT = 0.05
 
+  # Triples: raise the 3rd (rightmost) pokémon's seal burst by 9% of
+  # screen height.  Applies to all UIs (EBDX, Ghost Classic+, vanilla).
+  TRIPLES_THIRD_RAISE_PCT = 0.09
+
   # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
   # lower by 20% since opponent sprites are above the player.  This
   # applies to both Ghost Classic+ and EBDX.  Currently only player-side

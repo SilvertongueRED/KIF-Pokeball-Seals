@@ -8,7 +8,7 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
   begin
     PluginManager.register({
       :name    => "Ball Seals",
-      :version => "0.5.0",
+      :version => "0.6.0",
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
@@ -22,7 +22,7 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.5.0"
+  MOD_VERSION = "0.6.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8
@@ -437,13 +437,20 @@ module BallSealsKIF
     :BAT_E    => :BAT_YELLOW,     :BAT_F    => :BAT_RED,
     :BAT_G    => :BAT_PINK,       :BAT_H    => :BAT_ORANGE,
     :BAT_I    => :BAT_WHITE,      :BAT_J    => :BAT_BLUE,
-    # Old Fist_* symbols (removed — map to Star seals as closest visual match)
-    :FIST_BLACK   => :STAR_BLACK,   :FIST_PURPLE  => :STAR_PURPLE,
-    :FIST_GREY    => :STAR_GREY,    :FIST_GREEN   => :STAR_GREEN,
-    :FIST_YELLOW  => :STAR_YELLOW,  :FIST_RED     => :STAR_RED,
-    :FIST_PINK    => :STAR_PINK,    :FIST_ORANGE  => :STAR_ORANGE,
-    :FIST_WHITE   => :STAR_WHITE,   :FIST_BLUE    => :STAR_BLUE
+    # Old Fist_* symbols (now restored as dedicated fist seal art)
+    :FIST_BLACK   => :FIST_SEAL_BLACK,   :FIST_PURPLE  => :FIST_SEAL_PURPLE,
+    :FIST_GREY    => :FIST_SEAL_GREY,    :FIST_GREEN   => :FIST_SEAL_GREEN,
+    :FIST_YELLOW  => :FIST_SEAL_YELLOW,  :FIST_RED     => :FIST_SEAL_RED,
+    :FIST_PINK    => :FIST_SEAL_PINK,    :FIST_ORANGE  => :FIST_SEAL_ORANGE,
+    :FIST_WHITE   => :FIST_SEAL_WHITE,   :FIST_BLUE    => :FIST_SEAL_BLUE
   }
+
+  ("A".."Z").each do |letter|
+    LEGACY_SEAL_MAP["#{letter}_SEAL".to_sym] = "#{letter}_SEAL_BLACK".to_sym
+  end
+  LEGACY_SEAL_MAP[:EXCLAMATION_MARK_SEAL] = :EXCLAMATION_MARK_SEAL_BLACK
+  LEGACY_SEAL_MAP[:QUESTION_MARK_SEAL]    = :QUESTION_MARK_SEAL_BLACK
+  LEGACY_SEAL_MAP[:SNOW]                  = :SNOWFLAKE_SEAL_WHITE
 
   @bitmaps ||= {}
   @active_fx ||= []
@@ -709,6 +716,18 @@ module BallSealsKIF
     log("scan_icons_folder ERROR: #{e.class}: #{e.message}")
   end
 
+  def self.single_letter_seal_name?(name)
+    !!(name.to_s =~ /\A[A-Za-z] Seal(?: [A-Za-z]+)?\z/)
+  end
+
+  def self.punctuation_seal_name?(name)
+    !!(name.to_s =~ /\A(?:Exclamation Mark|Question Mark) Seal(?: [A-Za-z]+)?\z/i)
+  end
+
+  def self.letter_style_seal_name?(name)
+    single_letter_seal_name?(name) || punctuation_seal_name?(name)
+  end
+
   def self.all_seal_defs
     combined = SEAL_DEFS + (@dynamic_seal_defs || [])
     regular = []
@@ -716,9 +735,9 @@ module BallSealsKIF
     punctuation = []
     combined.each do |s|
       name = s[1].to_s
-      if name =~ /\A[A-Za-z] Seal\z/
+      if single_letter_seal_name?(name)
         letters << s
-      elsif name =~ /Exclamation Mark Seal|Question Mark Seal/i
+      elsif punctuation_seal_name?(name)
         punctuation << s
       else
         regular << s
@@ -734,7 +753,7 @@ module BallSealsKIF
     combined = SEAL_DEFS + (@dynamic_seal_defs || [])
     combined.select { |s|
       name = s[1].to_s
-      !(name =~ /\A[A-Za-z] Seal\z/) && !(name =~ /Exclamation Mark Seal|Question Mark Seal/i)
+      !letter_style_seal_name?(name)
     }.sort_by { |s| s[1].downcase }
   end
 
@@ -745,9 +764,9 @@ module BallSealsKIF
     punctuation = []
     combined.each do |s|
       name = s[1].to_s
-      if name =~ /\A[A-Za-z] Seal\z/
+      if single_letter_seal_name?(name)
         letters << s
-      elsif name =~ /Exclamation Mark Seal|Question Mark Seal/i
+      elsif punctuation_seal_name?(name)
         punctuation << s
       end
     end
@@ -806,7 +825,7 @@ module BallSealsKIF
   # Returns true if the seal symbol corresponds to a letter or punctuation seal.
   def self.letter_seal?(sym)
     name = seal_name(sym).to_s
-    !!(name =~ /\A[A-Za-z] Seal\z/ || name =~ /Exclamation Mark Seal|Question Mark Seal/i)
+    letter_style_seal_name?(name)
   end
 
   # Creates a new bitmap with a 1px black outline around the original.
@@ -877,7 +896,16 @@ module BallSealsKIF
       $PokemonGlobal.instance_variable_set(:@ball_seals_kif, data)
     end
     data[:capsules] ||= Array.new(MAX_CAPSULES) { |i| default_capsule(i + 1) }
-    data[:inventory] ||= default_inventory
+    merged_inventory = {}
+    (data[:inventory] || {}).each do |sym, qty|
+      resolved_sym = resolve_seal_sym(sym)
+      current_qty = merged_inventory[resolved_sym]
+      merged_inventory[resolved_sym] = current_qty ? [current_qty, qty].max : qty
+    end
+    default_inventory.each do |sym, qty|
+      merged_inventory[sym] = qty unless merged_inventory.key?(sym)
+    end
+    data[:inventory] = merged_inventory
     return data
   end
 

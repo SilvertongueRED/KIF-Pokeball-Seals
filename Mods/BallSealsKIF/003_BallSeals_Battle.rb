@@ -50,6 +50,8 @@ module BallSealsKIF
             y -= (Graphics.height * GHOST_DOUBLES_LEFT_RAISE_PCT).to_i
           elsif slot >= 1
             y += (Graphics.height * GHOST_DOUBLES_RIGHT_LOWER_PCT).to_i
+            # Additional 7% raise for the right pokémon in doubles
+            y -= (Graphics.height * GHOST_DOUBLES_RIGHT_EXTRA_RAISE_PCT).to_i
           end
         else
           # Normal battle UI (EBDX off, no Ghost): raise left by 6%,
@@ -334,8 +336,10 @@ module BallSealsKIF
             if is_doubles
               if slot == 0
                 # EBDX doubles: shift left pokémon's burst left by 4%
+                # plus an additional 5% left shift
                 # (Ghost Classic not present — it disables EBDX)
                 x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_X_SHIFT_PCT).to_i
+                x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_LEFT_EXTRA_SHIFT_PCT).to_i
               elsif slot >= 1
                 # EBDX doubles: lower right-side seal burst by 5%
                 burst_y += (Graphics.height * BallSealsKIF::EBDX_DOUBLES_RIGHT_LOWER_PCT).to_i

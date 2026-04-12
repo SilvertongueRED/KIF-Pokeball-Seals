@@ -43,7 +43,7 @@ class BallSealsPlaceScene
     # Draw side_panel behind the seal info/preview area
     panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
     if panel_bmp
-      dest = Rect.new(264, 64, Graphics.width - 280, 192)
+      dest = Rect.new(264 + (Graphics.width * 0.015).to_i, 64, Graphics.width - 280, 192)
       src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
       @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
     end
@@ -58,7 +58,7 @@ class BallSealsPlaceScene
     seal_bmp = BallSealsKIF.bitmap_for(@seal_sym)
     if seal_bmp
       @sprites["seal_icon"].bitmap = seal_bmp
-      @sprites["seal_icon"].x = 296 + (Graphics.width * 0.08).to_i
+      @sprites["seal_icon"].x = 296 + (Graphics.width * 0.055).to_i
       @sprites["seal_icon"].y = 90
       @sprites["seal_icon"].zoom_x = 3.0
       @sprites["seal_icon"].zoom_y = 3.0

@@ -1824,7 +1824,7 @@ class BallSealsCommandScene
         @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
       end
       @sprites["icon_preview"] = Sprite.new(@viewport)
-      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21 - (Graphics.width * 0.06).to_i
+      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21 - (Graphics.width * 0.045).to_i
       @sprites["icon_preview"].y = panel_y + 16 + (Graphics.height * 5 / 100)
       @sprites["icon_preview"].zoom_x = 3.0
       @sprites["icon_preview"].zoom_y = 3.0

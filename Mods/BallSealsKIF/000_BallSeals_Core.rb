@@ -1818,12 +1818,13 @@ class BallSealsCommandScene
       panel_y = y
       panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
       if panel_bmp
-        dest = Rect.new(panel_x - 8, panel_y, Graphics.width - panel_x, win_h)
+        panel_expand = (Graphics.width * 0.03).to_i
+        dest = Rect.new(panel_x - 8 - panel_expand, panel_y, Graphics.width - panel_x + panel_expand, win_h)
         src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
         @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
       end
       @sprites["icon_preview"] = Sprite.new(@viewport)
-      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21 - (Graphics.width * 0.06).to_i
+      @sprites["icon_preview"].x = panel_x + (Graphics.width - panel_x) / 2 - 21 - (Graphics.width * 0.02).to_i
       @sprites["icon_preview"].y = panel_y + 16 + (Graphics.height * 5 / 100)
       @sprites["icon_preview"].zoom_x = 3.0
       @sprites["icon_preview"].zoom_y = 3.0

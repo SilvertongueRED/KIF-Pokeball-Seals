@@ -132,7 +132,7 @@ class BallSealsCapsuleEditorScene
     # Draw GUI side panel decoration behind the info area
     panel_bmp = BallSealsKIF.gui_bitmap(:side_panel)
     if panel_bmp
-      dest = Rect.new(264 + (Graphics.width * 0.06).to_i, 64, Graphics.width - 280, 240)
+      dest = Rect.new(264 + (Graphics.width * 0.03).to_i, 64, Graphics.width - 280, 240)
       src  = Rect.new(0, 0, panel_bmp.width, panel_bmp.height)
       @sprites["bg"].bitmap.stretch_blt(dest, panel_bmp, src)
     end
@@ -141,7 +141,7 @@ class BallSealsCapsuleEditorScene
     @sprites["canvas"].bitmap = Bitmap.new(240,176)
     @sprites["canvas"].x = 16
     @sprites["canvas"].y = 72
-    @sprites["info"] = Window_UnformattedTextPokemon.newWithSize("", 264 + (Graphics.width * 0.06).to_i, 72 - (Graphics.height * 0.02).to_i, Graphics.width - 280, 232, @viewport)
+    @sprites["info"] = Window_UnformattedTextPokemon.newWithSize("", 264 + (Graphics.width * 0.03).to_i, 72 - (Graphics.height * 0.02).to_i, Graphics.width - 280, 232, @viewport)
     @sprites["info"].windowskin = nil
     @sprites["help"] = Window_UnformattedTextPokemon.newWithSize("", 0, Graphics.height - 72, Graphics.width, 72, @viewport)
     @sprites["help"].text = BallSealsKIF.intl("Use: Actions   Back: Exit")

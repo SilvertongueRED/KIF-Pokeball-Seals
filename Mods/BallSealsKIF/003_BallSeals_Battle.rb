@@ -45,14 +45,14 @@ module BallSealsKIF
       slot = 0 if !slot.is_a?(Integer)
       if is_doubles
         if ghost_classic_installed?
-          # Ghost Classic+ doubles: raise left by 9%, lower right by 3%.
+          # Ghost Classic+ doubles: raise left by 6%, lower right by 3%.
           if slot == 0
             y -= (Graphics.height * GHOST_DOUBLES_LEFT_RAISE_PCT).to_i
           elsif slot >= 1
             y += (Graphics.height * GHOST_DOUBLES_RIGHT_LOWER_PCT).to_i
           end
         else
-          # Normal battle UI (EBDX off, no Ghost): raise left by 10%,
+          # Normal battle UI (EBDX off, no Ghost): raise left by 6%,
           # raise right by 5%.
           if slot == 0
             y -= (Graphics.height * VANILLA_DOUBLES_LEFT_RAISE_PCT).to_i

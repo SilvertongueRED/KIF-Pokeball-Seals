@@ -122,9 +122,10 @@ module BallSealsKIF
   #  [symbol, display_name, fallback_color, fallback_size,
   #   particle_count, gravity, spin]
   #
-  # 284 seal types organized into 14 shape groups + 16 Pokémon type groups.
+  # 283 seal types organized into 14 shape groups + 16 Pokémon type groups.
   # Each shape has 10 color variants labeled by color name:
   #   Black, Purple, Grey, Green, Yellow, Red, Pink, Orange, White, Blue
+  # (Rock type seals have 3 variants: Black, Brown, Grey)
   SEAL_DEFS = [
     # Heart Seals (classic heart shape, 10 colors)
     [:HEART_BLACK,   "Heart Seal Black",   Color.new( 30, 30, 30,220),  6,  2, 0.18, 0.10],

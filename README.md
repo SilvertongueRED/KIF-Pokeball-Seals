@@ -1,1 +1,0 @@
-# KIF-Pokeball-Seals

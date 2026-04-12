@@ -40,21 +40,25 @@ module BallSealsKIF
       if ghost_classic_installed?
         y -= (Graphics.height * GHOST_CLASSIC_Y_RAISE_PCT).to_i
       end
-      # In doubles, the right-side pokemon (slot >= 1) gets its seal burst
-      # raised by 5% of screen height to prevent overlap with the left pokemon.
-      # Only applied when Ghost Classic+ UI is active.
+      # Doubles adjustments for player-side seal bursts.
       slot = ((idxBattler || 0) / 2)
       slot = 0 if !slot.is_a?(Integer)
-      if slot >= 1 && ghost_classic_installed?
-        y -= (Graphics.height * 0.05).to_i
-      end
-      # Ghost Classic+ doubles adjustments: shift the left pokémon's seal
-      # burst to the left by 3% and lower the right pokémon's by 2%.
-      if is_doubles && ghost_classic_installed?
-        if slot == 0
-          x -= (Graphics.width * DOUBLES_X_SHIFT_PCT).to_i
-        elsif slot >= 1
-          y += (Graphics.height * GHOST_DOUBLES_Y_LOWER_PCT).to_i
+      if is_doubles
+        if ghost_classic_installed?
+          # Ghost Classic+ doubles: raise left by 9%, lower right by 3%.
+          if slot == 0
+            y -= (Graphics.height * GHOST_DOUBLES_LEFT_RAISE_PCT).to_i
+          elsif slot >= 1
+            y += (Graphics.height * GHOST_DOUBLES_RIGHT_LOWER_PCT).to_i
+          end
+        else
+          # Normal battle UI (EBDX off, no Ghost): raise left by 10%,
+          # raise right by 5%.
+          if slot == 0
+            y -= (Graphics.height * VANILLA_DOUBLES_LEFT_RAISE_PCT).to_i
+          elsif slot >= 1
+            y -= (Graphics.height * VANILLA_DOUBLES_RIGHT_RAISE_PCT).to_i
+          end
         end
       end
       # Stagger each successive pokeball's seal burst so they animate
@@ -285,24 +289,20 @@ module BallSealsKIF
             BallSealsKIF.log("EBBallBurst sprite height ERROR: #{e.class}: #{e.message}")
           end
           # In doubles, adjust seal burst positions to prevent overlap.
-          # With Ghost Classic+: raise by 5%. Without Ghost (EBDX only):
-          # lower right-side by 3% and shift left-side to the left by 3%.
+          # EBDX visuals on (no Ghost): lower right by 5%, shift left
+          # pokémon's burst left by 4%.
           begin
             slot = ((idx_battler || 0) / 2)
             slot = 0 if !slot.is_a?(Integer)
             is_doubles = BallSealsKIF.player_sendout_count >= 2
             if is_doubles
               if slot >= 1
-                if BallSealsKIF.ghost_classic_installed?
-                  # Ghost Classic+ active: raise right-side seal burst by 5%
-                  burst_y -= (Graphics.height * 0.05).to_i
-                else
-                  # EBDX only (no Ghost): lower right-side seal burst by 3%
-                  burst_y += (Graphics.height * BallSealsKIF::DOUBLES_Y_LOWER_PCT).to_i
-                end
+                # EBDX doubles: lower right-side seal burst by 5%
+                burst_y += (Graphics.height * BallSealsKIF::EBDX_DOUBLES_RIGHT_LOWER_PCT).to_i
               end
-              if slot == 0 && !BallSealsKIF.ghost_classic_installed?
-                # EBDX doubles (no Ghost): shift left pokémon's burst left by 5%
+              if slot == 0
+                # EBDX doubles (Ghost Classic not present — it disables EBDX):
+                # shift left pokémon's burst left by 4%
                 x -= (Graphics.width * BallSealsKIF::EBDX_DOUBLES_X_SHIFT_PCT).to_i
               end
             end

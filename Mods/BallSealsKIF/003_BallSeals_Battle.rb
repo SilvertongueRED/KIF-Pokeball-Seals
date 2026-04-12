@@ -64,7 +64,7 @@ module BallSealsKIF
           end
         end
       end
-      # Triples: raise the 3rd (rightmost) pokémon's seal burst by 9%.
+      # Triples: raise the 3rd (rightmost) pokémon's seal burst by 14%.
       if is_triples && slot == 2
         y -= (Graphics.height * TRIPLES_THIRD_RAISE_PCT).to_i
       end
@@ -315,7 +315,10 @@ module BallSealsKIF
                 burst_y += (Graphics.height * BallSealsKIF::EBDX_DOUBLES_RIGHT_LOWER_PCT).to_i
               end
             end
-            # Triples: raise the 3rd (rightmost) pokémon's seal burst by 9%.
+            if is_triples && slot == 0
+              x += (Graphics.width * BallSealsKIF::EBDX_TRIPLES_LEFT_X_SHIFT_PCT).to_i
+            end
+            # Triples: raise the 3rd (rightmost) pokémon's seal burst by 14%.
             if is_triples && slot == 2
               burst_y -= (Graphics.height * BallSealsKIF::TRIPLES_THIRD_RAISE_PCT).to_i
             end

@@ -1726,7 +1726,7 @@ module BallSealsKIF
       # :hold keeps seals at full opacity for ~2 seconds (40 frames at 20fps)
       # before the fade-out begins.
       started = burst_delay <= 0
-      @active_fx << { :vp => overlay, :frames => 38, :delay => burst_delay,
+      @active_fx << { :vp => overlay, :frames => 36, :delay => burst_delay,
                       :hold => 40, :started => started, :particles => particles }
       # Make visible immediately only when there is no burst delay
       if started
@@ -1832,8 +1832,8 @@ module BallSealsKIF
       owns_viewport = true
     end
     start_capsule_burst_on_viewport(vp, Graphics.width / 2, Graphics.height / 2, cap)
-    # hold (40) + fade (38) + small buffer (4) = total preview frames
-    preview_frames = 40 + 38 + 4
+    # hold (40) + fade (36) + small buffer (4) = total preview frames
+    preview_frames = 40 + 36 + 4
     preview_frames.times do
       Graphics.update
       begin

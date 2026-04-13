@@ -8,7 +8,7 @@ if defined?(PluginManager) && PluginManager.respond_to?(:installed?) &&
   begin
     PluginManager.register({
       :name    => "Ball Seals",
-      :version => "0.7.0",
+      :version => "0.8.0",
       :link    => "https://github.com/SilvertongueRED/KIF-Pokeball-Seals",
       :credits => ["SilvertongueRED"]
     })
@@ -22,7 +22,7 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.7.0"
+  MOD_VERSION = "0.8.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
   MAX_SEALS_PER_CAPSULE = 8
@@ -1259,6 +1259,11 @@ module BallSealsKIF
         def ball_capsule_slot=(val); @ball_capsule_slot = val; end
         def ball_seals; @ball_seals ||= []; @ball_seals; end
         def ball_seals=(arr); @ball_seals = (arr || []).map { |x| x.is_a?(String) ? x.to_sym : x }.compact; end
+        # Resolved capsule placements baked onto the Pokémon so they
+        # survive Marshal serialization for link battles / trades.
+        # Array of { :seal => Symbol, :x => Float, :y => Float } hashes.
+        def ball_seal_placements; @ball_seal_placements; end
+        def ball_seal_placements=(arr); @ball_seal_placements = arr; end
       end
     end
     if defined?(PokeBattle_Pokemon)
@@ -1267,6 +1272,8 @@ module BallSealsKIF
         def ball_capsule_slot=(val); @ball_capsule_slot = val; end
         def ball_seals; @ball_seals ||= []; @ball_seals; end
         def ball_seals=(arr); @ball_seals = (arr || []).map { |x| x.is_a?(String) ? x.to_sym : x }.compact; end
+        def ball_seal_placements; @ball_seal_placements; end
+        def ball_seal_placements=(arr); @ball_seal_placements = arr; end
       end
     end
   end
@@ -1296,12 +1303,23 @@ module BallSealsKIF
 
   def self.capsule_for_pokemon(pkmn)
     return nil if !pkmn
+    # 1) Baked placements — set by bake_capsule_to_pokemon before a link
+    #    battle or trade so the data survives Marshal serialization to the
+    #    remote client.  This is how an opponent's seals become visible.
+    if pkmn.respond_to?(:ball_seal_placements) && pkmn.ball_seal_placements.is_a?(Array) && !pkmn.ball_seal_placements.empty?
+      placements = pkmn.ball_seal_placements.map do |p|
+        { :seal => resolve_seal_sym(p[:seal]), :x => p[:x].to_f, :y => p[:y].to_f }
+      end
+      return { :name => "Baked", :placements => placements }
+    end
+    # 2) Capsule slot (local save data — works for the local player)
     slot = nil
     slot = pkmn.ball_capsule_slot if pkmn.respond_to?(:ball_capsule_slot)
     if slot && slot >= 1 && slot <= MAX_CAPSULES
       cap = capsule(slot)
       return clone_capsule(cap) if cap
     end
+    # 3) Legacy direct seal array
     if pkmn.respond_to?(:ball_seals) && pkmn.ball_seals && !pkmn.ball_seals.empty?
       placements = []
       pkmn.ball_seals[0, MAX_SEALS_PER_CAPSULE].each_with_index do |seal, i|
@@ -1317,6 +1335,59 @@ module BallSealsKIF
     nil
   end
 
+  # ── Multiplayer seal data baking ──────────────────────────────────
+  # Resolves a Pokémon's capsule (via slot or direct seals) and stores
+  # the placements directly on the Pokémon's @ball_seal_placements.
+  # This data is a plain Array of { :seal, :x, :y } Hashes that
+  # survive Ruby Marshal serialization, ensuring the opponent client
+  # receives the full seal layout when Pokémon are exchanged over the
+  # wire during link battles or trades.
+  #
+  # Call bake_seals_for_battle(battle) at battle start (see
+  # 003_BallSeals_Battle.rb) to prepare every player-side Pokémon.
+
+  def self.bake_capsule_to_pokemon(pkmn)
+    return if !pkmn
+    # Resolve from local capsule slot or legacy seals
+    slot = pkmn.respond_to?(:ball_capsule_slot) ? pkmn.ball_capsule_slot : nil
+    cap = nil
+    if slot && slot >= 1 && slot <= MAX_CAPSULES
+      cap = capsule(slot)
+    end
+    if (!cap || !cap[:placements] || cap[:placements].empty?) &&
+       pkmn.respond_to?(:ball_seals) && pkmn.ball_seals && !pkmn.ball_seals.empty?
+      placements = []
+      pkmn.ball_seals[0, MAX_SEALS_PER_CAPSULE].each_with_index do |seal, i|
+        ang = (i.to_f / [1, pkmn.ball_seals.length].max) * Math::PI * 2.0
+        placements << {
+          :seal => resolve_seal_sym(seal),
+          :x => 0.5 + Math.cos(ang) * 0.41,
+          :y => 0.5 + Math.sin(ang) * 0.32
+        }
+      end
+      cap = { :placements => placements }
+    end
+    if cap && cap[:placements] && !cap[:placements].empty?
+      baked = cap[:placements].map do |p|
+        { :seal => resolve_seal_sym(p[:seal]), :x => p[:x].to_f, :y => p[:y].to_f }
+      end
+      pkmn.ball_seal_placements = baked if pkmn.respond_to?(:ball_seal_placements=)
+      log("DBG: Baked #{baked.length} seal placements onto #{pkmn.respond_to?(:name) ? pkmn.name : 'Pokémon'}")
+    else
+      pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)
+    end
+  rescue => e
+    log("bake_capsule_to_pokemon ERROR: #{e.class}: #{e.message}")
+  end
+
+  # Bake seal data onto every Pokémon in the given party array.
+  # Typically called with the local player's party before a link
+  # battle or trade so the remote client can render seals.
+  def self.bake_seals_for_party(party_mons)
+    return if !party_mons || !party_mons.is_a?(Array)
+    party_mons.each { |pkmn| bake_capsule_to_pokemon(pkmn) }
+  end
+
   def self.enqueue_capsule_for_pokemon(pkmn, idx_battler = nil)
     cap = capsule_for_pokemon(pkmn)
     @replacement_queue << { :cap => cap, :idx_battler => idx_battler, :pkmn => pkmn }
@@ -1326,12 +1397,15 @@ module BallSealsKIF
     @replacement_queue = []
     @ebdx_ball_index = 0
     @player_sendout_count = 0
+    @opponent_sendout_count = 0
   end
 
-  # Track total player-side pokémon being sent out so the EBBallBurst
+  # Track total pokémon being sent out per side so the EBBallBurst
   # hook can detect doubles and apply positional adjustments.
   def self.set_player_sendout_count(n); @player_sendout_count = n; end
   def self.player_sendout_count; @player_sendout_count || 0; end
+  def self.set_opponent_sendout_count(n); @opponent_sendout_count = n; end
+  def self.opponent_sendout_count; @opponent_sendout_count || 0; end
   def self.replacement_queue_pending?; !@replacement_queue.empty?; end
   def self.consume_replacement_capsule
     return nil if @replacement_queue.empty?
@@ -1551,11 +1625,20 @@ module BallSealsKIF
   # screen width to better match the three-Pokémon send-out layout.
   EBDX_TRIPLES_LEFT_X_SHIFT_PCT = 0.03
 
-  # TODO (future): For opposing-side (NPC / multiplayer) seal animations,
-  # lower by 20% since opponent sprites are above the player.  This
-  # applies to both Ghost Classic+ and EBDX.  Currently only player-side
-  # seal bursts are displayed; opponent-side support is not yet wired up.
-  # OPPONENT_Y_LOWER_PCT = 0.20
+  # ── Opponent-side burst positioning ─────────────────────────────────
+  # For opposing-side (NPC / multiplayer) seal animations, lower bursts
+  # by 20% since opponent sprites sit in the upper portion of the screen.
+  # Applies to both Ghost Classic+ and EBDX.
+  OPPONENT_Y_LOWER_PCT = 0.20
+
+  # Opponent doubles: nudge left opponent's burst left by 3% of screen
+  # width, and right opponent's burst right by 3%.
+  OPPONENT_DOUBLES_LEFT_X_SHIFT_PCT  = 0.03
+  OPPONENT_DOUBLES_RIGHT_X_SHIFT_PCT = 0.03
+
+  # Opponent triples: raise the 3rd (rightmost) opponent's seal burst
+  # by 10% of screen height.
+  OPPONENT_TRIPLES_THIRD_RAISE_PCT = 0.10
 
   # Per-pokeball stagger delay (in frames) when multiple pokeballs
   # open at once (e.g. doubles/triples).  The first pokeball's seals

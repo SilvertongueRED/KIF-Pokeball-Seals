@@ -1,11 +1,11 @@
 # 003_BallSeals_Battle.rb
 module BallSealsKIF
   # ── Vanilla/Classic battle burst helper ────────────────────────────
-  # Fires seal capsule particle bursts on the battle viewport at the
-  # same position the normal ball-open light rays appear.  Works for
-  # any scene that is NOT PokeBattle_SceneEBDX (Classic+, vanilla
-  # Type 2, etc.).  Called BEFORE the send-out animation so the
-  # particles play in parallel with the pokéball opening.
+  # Fires seal capsule particle bursts on the battle viewport for BOTH
+  # player-side and opponent-side Pokémon.  Works for any scene that is
+  # NOT PokeBattle_SceneEBDX (Classic+, vanilla Type 2, etc.).
+  # Called BEFORE the send-out animation so the particles play in
+  # parallel with the pokéball opening.
   #
   # When Ghost Classic+ UI is detected the burst is staggered by
   # GHOST_BURST_DELAY frames so the seals appear in sync with Ghost's
@@ -19,61 +19,90 @@ module BallSealsKIF
     vp      = resolve_test_viewport(scene)
     return if !vp
     base_delay = ghost_classic_installed? ? GHOST_BURST_DELAY : VANILLA_BURST_DELAY
-    # Count player-side pokémon for doubles/triples detection.
+    # Count player-side and opponent-side pokémon for doubles/triples.
     player_count = 0
+    opponent_count = 0
     send_outs.each do |pair|
-      next if battle && battle.respond_to?(:opposes?) && battle.opposes?(pair[0])
-      player_count += 1
+      is_opponent = battle && battle.respond_to?(:opposes?) && battle.opposes?(pair[0])
+      if is_opponent
+        opponent_count += 1
+      else
+        player_count += 1
+      end
     end
-    is_doubles = player_count >= 2
-    is_triples = player_count >= 3
-    ball_index = 0
+    player_is_doubles = player_count >= 2
+    player_is_triples = player_count >= 3
+    opp_is_doubles = opponent_count >= 2
+    opp_is_triples = opponent_count >= 3
+    player_ball_index = 0
+    opp_ball_index = 0
     send_outs.each do |pair|
       idxBattler = pair[0]
       pkmn       = pair[1]
-      next if battle && battle.respond_to?(:opposes?) && battle.opposes?(idxBattler)
+      is_opponent = battle && battle.respond_to?(:opposes?) && battle.opposes?(idxBattler)
       cap = capsule_for_pokemon(pkmn)
       next if !cap || !cap[:placements] || cap[:placements].empty?
-      x, y = player_battler_burst_pos(scene, sprites, idxBattler, pkmn)
-      # When Ghost Classic+ UI is detected, raise player-side seal
-      # animations by GHOST_CLASSIC_Y_RAISE_PCT of screen height so they
-      # sit above the Pokémon sprite instead of overlapping with it.
-      if ghost_classic_installed?
-        y -= (Graphics.height * GHOST_CLASSIC_Y_RAISE_PCT).to_i
-      end
-      # Doubles/triples adjustments for player-side seal bursts.
-      slot = ((idxBattler || 0) / 2)
-      slot = 0 if !slot.is_a?(Integer)
-      if is_doubles
-        if ghost_classic_installed?
-          # Ghost Classic+ doubles: raise left by 6%, lower right by 3%.
+      if is_opponent
+        x, y = opponent_battler_burst_pos(scene, sprites, idxBattler, pkmn)
+        # Doubles/triples adjustments for opponent-side seal bursts.
+        slot = ((idxBattler || 1) / 2)
+        slot = 0 if !slot.is_a?(Integer)
+        if opp_is_doubles
           if slot == 0
-            y -= (Graphics.height * GHOST_DOUBLES_LEFT_RAISE_PCT).to_i
+            x -= (Graphics.width * OPPONENT_DOUBLES_LEFT_X_SHIFT_PCT).to_i
           elsif slot >= 1
-            y += (Graphics.height * GHOST_DOUBLES_RIGHT_LOWER_PCT).to_i
-            # Additional 7% raise for the right pokémon in doubles
-            y -= (Graphics.height * GHOST_DOUBLES_RIGHT_EXTRA_RAISE_PCT).to_i
-          end
-        else
-          # Normal battle UI (EBDX off, no Ghost): raise left by 6%,
-          # raise right by 5%.
-          if slot == 0
-            y -= (Graphics.height * VANILLA_DOUBLES_LEFT_RAISE_PCT).to_i
-          elsif slot >= 1
-            y -= (Graphics.height * VANILLA_DOUBLES_RIGHT_RAISE_PCT).to_i
+            x += (Graphics.width * OPPONENT_DOUBLES_RIGHT_X_SHIFT_PCT).to_i
           end
         end
+        if opp_is_triples && slot == 2
+          y -= (Graphics.height * OPPONENT_TRIPLES_THIRD_RAISE_PCT).to_i
+        end
+        burst_delay = base_delay + (opp_ball_index * MULTI_BALL_STAGGER)
+        start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+        log("DBG: Triggered opponent seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
+        opp_ball_index += 1
+      else
+        x, y = player_battler_burst_pos(scene, sprites, idxBattler, pkmn)
+        # When Ghost Classic+ UI is detected, raise player-side seal
+        # animations by GHOST_CLASSIC_Y_RAISE_PCT of screen height so they
+        # sit above the Pokémon sprite instead of overlapping with it.
+        if ghost_classic_installed?
+          y -= (Graphics.height * GHOST_CLASSIC_Y_RAISE_PCT).to_i
+        end
+        # Doubles/triples adjustments for player-side seal bursts.
+        slot = ((idxBattler || 0) / 2)
+        slot = 0 if !slot.is_a?(Integer)
+        if player_is_doubles
+          if ghost_classic_installed?
+            # Ghost Classic+ doubles: raise left by 6%, lower right by 3%.
+            if slot == 0
+              y -= (Graphics.height * GHOST_DOUBLES_LEFT_RAISE_PCT).to_i
+            elsif slot >= 1
+              y += (Graphics.height * GHOST_DOUBLES_RIGHT_LOWER_PCT).to_i
+              # Additional 7% raise for the right pokémon in doubles
+              y -= (Graphics.height * GHOST_DOUBLES_RIGHT_EXTRA_RAISE_PCT).to_i
+            end
+          else
+            # Normal battle UI (EBDX off, no Ghost): raise left by 6%,
+            # raise right by 5%.
+            if slot == 0
+              y -= (Graphics.height * VANILLA_DOUBLES_LEFT_RAISE_PCT).to_i
+            elsif slot >= 1
+              y -= (Graphics.height * VANILLA_DOUBLES_RIGHT_RAISE_PCT).to_i
+            end
+          end
+        end
+        # Triples: raise the 3rd (rightmost) pokémon's seal burst by 14%.
+        if player_is_triples && slot == 2
+          y -= (Graphics.height * TRIPLES_THIRD_RAISE_PCT).to_i
+        end
+        # Stagger each successive pokeball's seal burst so they animate
+        # sequentially rather than all at once.
+        burst_delay = base_delay + (player_ball_index * MULTI_BALL_STAGGER)
+        start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+        log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
+        player_ball_index += 1
       end
-      # Triples: raise the 3rd (rightmost) pokémon's seal burst by 14%.
-      if is_triples && slot == 2
-        y -= (Graphics.height * TRIPLES_THIRD_RAISE_PCT).to_i
-      end
-      # Stagger each successive pokeball's seal burst so they animate
-      # sequentially rather than all at once.
-      burst_delay = base_delay + (ball_index * MULTI_BALL_STAGGER)
-      start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
-      log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
-      ball_index += 1
     end
   rescue => e
     log("trigger_vanilla_burst ERROR: #{e.class}: #{e.message}")
@@ -131,6 +160,48 @@ module BallSealsKIF
     [Graphics.width / 4 + dx, (Graphics.height * 3) / 4 - y_offset]
   end
 
+  # Determine the best screen position for an opponent-side battler's
+  # ball-open burst.  Opponent sprites appear in the upper portion of
+  # the screen.  Uses the same sprite/position lookup strategy as the
+  # player-side helper but falls back to an upper-screen default.
+  def self.opponent_battler_burst_pos(scene, sprites, idxBattler, pkmn = nil)
+    sprite_h = pkmn ? species_sprite_height(pkmn) : DEFAULT_SPRITE_VISIBLE_HEIGHT
+    y_offset = [(sprite_h / 2.0).to_i, 16].max
+
+    # 1) Battler sprite — only trust it when already on-screen.
+    if sprites
+      sprite = sprites["pokemon_#{idxBattler}"] rescue nil
+      if sprite && !sprite.disposed? && sprite.x > 0 && sprite.y > 0
+        zoom_y = (sprite.respond_to?(:zoom_y) ? sprite.zoom_y : 1.0) rescue 1.0
+        zoom_y = 1.0 if zoom_y <= 0
+        sy = sprite.y - (y_offset * zoom_y).to_i
+        if sy > 0 && sprite.x < Graphics.width && sy < Graphics.height
+          return [sprite.x, sy]
+        end
+      end
+    end
+    # 2) Scene helper (Essentials v20+ pbBattlerPosition).
+    begin
+      if scene.respond_to?(:pbBattlerPosition)
+        pos = scene.pbBattlerPosition(idxBattler)
+        if pos.is_a?(Array) && pos.length >= 2 && pos[0].to_i > 0 && pos[1].to_i > 0
+          return [pos[0].to_i, pos[1].to_i - y_offset]
+        end
+      end
+    rescue => e
+      BallSealsKIF.log("opponent_battler_burst_pos pbBattlerPosition ERROR: #{e.class}: #{e.message}")
+    end
+    # 3) Fallback — approximate centre of the opponent battler area.
+    #    Essentials uses odd indices for opponent-side battlers (1, 3, …),
+    #    so (idx / 2) gives the slot number within the opponent's team.
+    #    Opponent sprites are in the upper half of the screen, offset by
+    #    OPPONENT_Y_LOWER_PCT to keep seals above the sprite.
+    slot = ((idxBattler || 1) / 2) rescue 0
+    dx   = slot * (Graphics.width / 8)
+    base_y = (Graphics.height / 4) - y_offset + (Graphics.height * OPPONENT_Y_LOWER_PCT).to_i
+    [Graphics.width * 3 / 4 - dx, base_y]
+  end
+
   # Resolves the battle scene class across Essentials versions.
   # v19 and earlier: PokeBattle_Scene
   # v20 (compat alias): PokeBattle_Scene = Battle::Scene
@@ -141,11 +212,45 @@ module BallSealsKIF
     nil
   end
 
+  # ── Seal data baking at battle start ────────────────────────────────
+  # Bakes resolved capsule placements onto every Pokémon in the
+  # player's party so the data survives Marshal serialization for link
+  # battles (PvP, co-op).  The opponent's client receives the baked
+  # data and can render matching seal animations regardless of whether
+  # they have the same capsule slots configured locally.
+  #
+  # Called automatically by init_battle and also by the pbStartBattle
+  # hook so data is ready before any Pokémon are sent over the wire.
+  def self.bake_seals_for_battle(battle = nil)
+    # Bake the local player's party
+    mons = party
+    bake_seals_for_party(mons) if mons && !mons.empty?
+    # If a battle object is available, also bake any Pokémon already
+    # assigned to battler slots (covers mid-battle replacements).
+    if battle
+      begin
+        if battle.respond_to?(:battlers)
+          (battle.battlers || []).each do |b|
+            next if !b
+            pkmn = b.respond_to?(:pokemon) ? b.pokemon : b
+            next if !pkmn
+            bake_capsule_to_pokemon(pkmn)
+          end
+        end
+      rescue => e
+        log("bake_seals_for_battle battlers ERROR: #{e.class}: #{e.message}")
+      end
+    end
+    log("DBG: Baked seal data for battle (#{(mons || []).length} party Pokémon)")
+  rescue => e
+    log("bake_seals_for_battle ERROR: #{e.class}: #{e.message}")
+  end
+
   def self.install_sendout_hooks
     return if @sendout_hooks_installed
     patched = []
 
-    # ── EBDX send-out hook ────────────────────────────────────────────
+    # ── EBDX player send-out hook ─────────────────────────────────────
     if defined?(PokeBattle_SceneEBDX) &&
        PokeBattle_SceneEBDX.method_defined?(:playerBattlerSendOut) &&
        !PokeBattle_SceneEBDX.method_defined?(:__bskif_playerBattlerSendOut)
@@ -177,6 +282,51 @@ module BallSealsKIF
         end
       end
       patched << "PokeBattle_SceneEBDX#playerBattlerSendOut"
+    end
+
+    # ── EBDX opponent send-out hook ───────────────────────────────────
+    # EBDX has trainerBattlerSendOut for opponent-side animations.
+    # We hook it to trigger seal bursts for the opponent's Pokémon.
+    if defined?(PokeBattle_SceneEBDX) &&
+       PokeBattle_SceneEBDX.method_defined?(:trainerBattlerSendOut) &&
+       !PokeBattle_SceneEBDX.method_defined?(:__bskif_trainerBattlerSendOut)
+      PokeBattle_SceneEBDX.class_eval do
+        alias __bskif_trainerBattlerSendOut trainerBattlerSendOut
+        def trainerBattlerSendOut(sendOuts, startBattle = false)
+          begin
+            # Trigger opponent seal bursts BEFORE the send-out animation.
+            vp = nil
+            [:@viewport, :@viewport1, :@viewport2, :@viewport0].each do |iv|
+              next if !instance_variable_defined?(iv)
+              v = instance_variable_get(iv)
+              if v && v.is_a?(Viewport) && !v.disposed?
+                vp = v
+                break
+              end
+            end
+            vp ||= Viewport.new(0, 0, Graphics.width, Graphics.height)
+            base_delay = BallSealsKIF.ghost_classic_installed? ? BallSealsKIF::GHOST_BURST_DELAY : BallSealsKIF::VANILLA_BURST_DELAY
+            opp_count = 0
+            ball_index = 0
+            sendOuts.each do |pair|
+              idxBattler = pair[0]
+              pkmn = pair[1]
+              opp_count += 1
+              cap = BallSealsKIF.capsule_for_pokemon(pkmn)
+              next if !cap || !cap[:placements] || cap[:placements].empty?
+              x, y = BallSealsKIF.opponent_battler_burst_pos(self, @sprites, idxBattler, pkmn)
+              burst_delay = base_delay + (ball_index * BallSealsKIF::MULTI_BALL_STAGGER)
+              BallSealsKIF.start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+              BallSealsKIF.log("DBG: Triggered EBDX opponent seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
+              ball_index += 1
+            end
+          rescue => e
+            BallSealsKIF.log("trainerBattlerSendOut burst ERROR: #{e.class}: #{e.message}")
+          end
+          return __bskif_trainerBattlerSendOut(sendOuts, startBattle)
+        end
+      end
+      patched << "PokeBattle_SceneEBDX#trainerBattlerSendOut"
     end
 
     # ── Standard / Vanilla / Classic+ scene hooks ─────────────────────
@@ -356,6 +506,36 @@ module BallSealsKIF
     log("install_burst_replacement_hook ERROR: #{e.class}: #{e.message}")
   end
 
+  # ── pbStartBattle hook ────────────────────────────────────────────
+  # Hook the battle start to bake seal data onto all player Pokémon
+  # before the battle scene begins.  This ensures the data is ready
+  # for serialization to the remote client in link battles.
+  def self.install_battle_start_hook
+    return if @battle_start_hook_installed
+    scene_klass = resolve_scene_class
+    return if !scene_klass
+
+    if scene_klass.method_defined?(:pbStartBattle) &&
+       !scene_klass.method_defined?(:__bskif_pbStartBattle)
+      scene_klass.class_eval do
+        alias __bskif_pbStartBattle pbStartBattle
+        def pbStartBattle(*args)
+          begin
+            battle = instance_variable_get(:@battle) rescue nil
+            BallSealsKIF.bake_seals_for_battle(battle)
+          rescue => e
+            BallSealsKIF.log("pbStartBattle bake ERROR: #{e.class}: #{e.message}")
+          end
+          return __bskif_pbStartBattle(*args)
+        end
+      end
+      @battle_start_hook_installed = true
+      log("Installed pbStartBattle seal-baking hook on #{scene_klass.name || scene_klass}")
+    end
+  rescue => e
+    log("install_battle_start_hook ERROR: #{e.class}: #{e.message}")
+  end
+
   def self.init_battle
     # Reset Ghost detection cache so a fresh check runs every init
     @ghost_classic_detected = nil
@@ -364,8 +544,12 @@ module BallSealsKIF
     # Dispose any leftover seal overlay viewport from a previous battle
     # so each battle starts with a clean slate.
     dispose_seal_overlay_viewport
+    # Bake seal placements onto player Pokémon so the data is available
+    # for serialization in link battles.
+    bake_seals_for_battle
     install_sendout_hooks
     install_burst_replacement_hook
+    install_battle_start_hook
     if ghost_classic_installed?
       log("Ghost Classic+ UI detected — burst delay set to #{GHOST_BURST_DELAY} frames")
     else

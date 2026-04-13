@@ -98,10 +98,246 @@ class BallSealsPlaceScene
   end
 end
 
+# Multi-move scene: draw capsule canvas, let user drag a selection box
+# to select multiple seals, then move them all by an offset.
+class BallSealsMultiMoveScene
+  CANVAS_X = 16
+  CANVAS_Y = 72
+  CANVAS_W = 240
+  CANVAS_H = 176
+
+  def initialize(slot, capsule)
+    @slot = slot
+    @capsule = BallSealsKIF.clone_capsule(capsule)
+  end
+
+  def main
+    @viewport = Viewport.new(0, 0, Graphics.width, Graphics.height)
+    @viewport.z = 99999
+    @sprites = {}
+    @sprites["bg"] = Sprite.new(@viewport)
+    @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
+    @sprites["bg"].bitmap.fill_rect(0, 0, Graphics.width, Graphics.height, Color.new(14, 18, 24))
+    capsule_bg = BallSealsKIF.gui_bitmap(:capsule_bg)
+    if capsule_bg
+      dest = Rect.new(8, 64, 256, 192)
+      src  = Rect.new(0, 0, capsule_bg.width, capsule_bg.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, capsule_bg, src)
+    end
+    @sprites["title"] = Window_UnformattedTextPokemon.newWithSize("", 0, 0, Graphics.width, 64, @viewport)
+    @sprites["title"].text = BallSealsKIF.intl("Multi-Move: Select Seals")
+    @sprites["canvas"] = Sprite.new(@viewport)
+    @sprites["canvas"].bitmap = Bitmap.new(CANVAS_W, CANVAS_H)
+    @sprites["canvas"].x = CANVAS_X
+    @sprites["canvas"].y = CANVAS_Y
+    @sprites["overlay"] = Sprite.new(@viewport)
+    @sprites["overlay"].bitmap = Bitmap.new(CANVAS_W, CANVAS_H)
+    @sprites["overlay"].x = CANVAS_X
+    @sprites["overlay"].y = CANVAS_Y
+    @sprites["overlay"].z = @viewport.z + 1
+    @sprites["help"] = Window_UnformattedTextPokemon.newWithSize("", 0, Graphics.height - 88, Graphics.width, 88, @viewport)
+
+    # Phase 1: Select seals with a drag box
+    @sprites["help"].text = BallSealsKIF.intl("Hold Confirm+D-Pad: Draw box  Release: Select  Back: Cancel")
+    refresh_canvas
+    selected = select_phase
+    if !selected || selected.empty?
+      dispose
+      return nil
+    end
+
+    # Phase 2: Move the selected seals together
+    @sprites["title"].text = BallSealsKIF.intl("Multi-Move: Drag Seals")
+    @sprites["help"].text = BallSealsKIF.intl("D-Pad: Move  Confirm: Place  Back: Cancel")
+    result = move_phase(selected)
+    dispose
+    return result
+  end
+
+  def select_phase
+    # Cursor for selection box (normalised 0..1 coords on canvas)
+    cx = 0.5
+    cy = 0.5
+    dragging = false
+    sel_x1 = 0.0; sel_y1 = 0.0
+    sel_x2 = 0.0; sel_y2 = 0.0
+
+    loop do
+      refresh_canvas
+      # Draw selection box overlay
+      @sprites["overlay"].bitmap.clear
+      if dragging
+        draw_selection_box(sel_x1, sel_y1, cx, cy)
+      end
+      # Draw cursor crosshair
+      px = (cx * CANVAS_W).to_i
+      py = (cy * CANVAS_H).to_i
+      c = Color.new(255, 255, 100)
+      @sprites["overlay"].bitmap.fill_rect([px - 5, 0].max, py, [11, CANVAS_W].min, 1, c)
+      @sprites["overlay"].bitmap.fill_rect(px, [py - 5, 0].max, 1, [11, CANVAS_H].min, c)
+
+      Graphics.update
+      Input.update
+
+      step = 0.03
+      if Input.repeat?(Input::LEFT)
+        cx = [[cx - step, 0.0].max, 1.0].min
+      end
+      if Input.repeat?(Input::RIGHT)
+        cx = [[cx + step, 0.0].max, 1.0].min
+      end
+      if Input.repeat?(Input::UP)
+        cy = [[cy - step, 0.0].max, 1.0].min
+      end
+      if Input.repeat?(Input::DOWN)
+        cy = [[cy + step, 0.0].max, 1.0].min
+      end
+
+      if Input.press?(Input::USE)
+        if !dragging
+          # Start drag
+          dragging = true
+          sel_x1 = cx
+          sel_y1 = cy
+        end
+        # While held, the box extends to current cursor
+      else
+        if dragging
+          # Released — finalize selection
+          dragging = false
+          sel_x2 = cx
+          sel_y2 = cy
+          indices = seals_in_box(sel_x1, sel_y1, sel_x2, sel_y2)
+          if indices.empty?
+            # No seals selected, keep selecting
+            next
+          end
+          return indices
+        end
+      end
+
+      if Input.trigger?(Input::BACK)
+        return nil
+      end
+    end
+  end
+
+  def move_phase(selected_indices)
+    # Calculate center of selected seals as the drag anchor
+    placements = @capsule[:placements]
+    sum_x = 0.0; sum_y = 0.0
+    selected_indices.each do |i|
+      sum_x += placements[i][:x].to_f
+      sum_y += placements[i][:y].to_f
+    end
+    anchor_x = sum_x / selected_indices.length
+    anchor_y = sum_y / selected_indices.length
+    # Current offset from anchor
+    off_x = 0.0
+    off_y = 0.0
+
+    loop do
+      # Show preview with moved seals
+      refresh_canvas_with_offset(selected_indices, off_x, off_y)
+
+      Graphics.update
+      Input.update
+
+      step = 0.03
+      if Input.repeat?(Input::LEFT)
+        off_x -= step
+      elsif Input.repeat?(Input::RIGHT)
+        off_x += step
+      elsif Input.repeat?(Input::UP)
+        off_y -= step
+      elsif Input.repeat?(Input::DOWN)
+        off_y += step
+      elsif Input.trigger?(Input::USE)
+        # Apply the offset to selected seals
+        selected_indices.each do |i|
+          pl = @capsule[:placements][i]
+          pl[:x] = [[pl[:x].to_f + off_x, 0.0].max, 1.0].min
+          pl[:y] = [[pl[:y].to_f + off_y, 0.0].max, 1.0].min
+        end
+        return @capsule
+      elsif Input.trigger?(Input::BACK)
+        return nil
+      end
+    end
+  end
+
+  def seals_in_box(x1, y1, x2, y2)
+    min_x = [x1, x2].min
+    max_x = [x1, x2].max
+    min_y = [y1, y2].min
+    max_y = [y1, y2].max
+    indices = []
+    (@capsule[:placements] || []).each_with_index do |pl, i|
+      px = pl[:x].to_f
+      py = pl[:y].to_f
+      if px >= min_x && px <= max_x && py >= min_y && py <= max_y
+        indices << i
+      end
+    end
+    indices
+  end
+
+  def draw_selection_box(x1, y1, x2, y2)
+    bmp = @sprites["overlay"].bitmap
+    px1 = (([x1, x2].min) * CANVAS_W).to_i
+    py1 = (([y1, y2].min) * CANVAS_H).to_i
+    px2 = (([x1, x2].max) * CANVAS_W).to_i
+    py2 = (([y1, y2].max) * CANVAS_H).to_i
+    w = px2 - px1
+    h = py2 - py1
+    return if w <= 0 || h <= 0
+    box_color = Color.new(100, 200, 255, 80)
+    bmp.fill_rect(px1, py1, w, h, box_color)
+    border = Color.new(100, 200, 255, 200)
+    bmp.fill_rect(px1, py1, w, 1, border)
+    bmp.fill_rect(px1, py2, w, 1, border)
+    bmp.fill_rect(px1, py1, 1, h, border)
+    bmp.fill_rect(px2, py1, 1, h, border)
+  end
+
+  def refresh_canvas
+    BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, @capsule)
+  end
+
+  def refresh_canvas_with_offset(selected_indices, off_x, off_y)
+    # Create a temporary capsule with offsets applied for preview
+    temp_cap = BallSealsKIF.clone_capsule(@capsule)
+    selected_indices.each do |i|
+      next if i >= temp_cap[:placements].length
+      pl = temp_cap[:placements][i]
+      pl[:x] = [[pl[:x].to_f + off_x, 0.0].max, 1.0].min
+      pl[:y] = [[pl[:y].to_f + off_y, 0.0].max, 1.0].min
+    end
+    BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, temp_cap)
+    # Highlight selected seals
+    bmp = @sprites["canvas"].bitmap
+    selected_indices.each do |i|
+      next if i >= temp_cap[:placements].length
+      pl = temp_cap[:placements][i]
+      px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
+      py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
+      highlight = Color.new(100, 200, 255, 100)
+      size = BallSealsKIF::CANVAS_ICON_SIZE + 4
+      bmp.fill_rect(px - size / 2, py - size / 2, size, size, highlight)
+    end
+  end
+
+  def dispose
+    pbDisposeSpriteHash(@sprites) if @sprites
+    @viewport.dispose if @viewport && !@viewport.disposed?
+  rescue
+  end
+end
+
 class BallSealsCapsuleEditorScene
   COMMANDS = [
     "Add Seal",
-    "Move Seal",
+    "Move Seals",
     "Remove Seal",
     "Rename Capsule",
     "Assign to Pokémon",
@@ -165,10 +401,6 @@ class BallSealsCapsuleEditorScene
   def handle_command(cmd)
     case cmd
     when 0
-      if (@capsule[:placements] || []).length >= BallSealsKIF::MAX_SEALS_PER_CAPSULE
-        pbMessage(BallSealsKIF.intl("That capsule already has {1} seals.", BallSealsKIF::MAX_SEALS_PER_CAPSULE))
-        return
-      end
       add_seal_flow
     when 1 then move_seal_flow
     when 2 then remove_seal_flow
@@ -216,43 +448,104 @@ class BallSealsCapsuleEditorScene
   end
 
   def choose_seal
-    # Two-step category menu: Shapes vs Letters
-    categories = [
-      BallSealsKIF.intl("Shapes"),
-      BallSealsKIF.intl("Letters"),
-      BallSealsKIF.intl("Back")
-    ]
-    cat_idx = BallSealsCommandScene.new(
-      BallSealsKIF.intl("Seal Category"),
-      categories,
-      BallSealsKIF.intl("Choose a category.")
-    ).main
-    return nil if cat_idx.nil? || cat_idx == 2
-    # Seal list with sort toggle — loops so toggling re-renders the list
+    # Remembers category and seal selection across calls within this editor
+    @last_category_idx ||= 0
+    @last_seal_idx ||= {}      # category_idx => last command index
+    @expanded_groups ||= {}    # category_idx => { group_name => true/false }
+
+    loop do
+      # Two-step category menu: Shapes vs Letters
+      categories = [
+        BallSealsKIF.intl("Shapes"),
+        BallSealsKIF.intl("Letters"),
+        BallSealsKIF.intl("Back")
+      ]
+      cat_idx = BallSealsCommandScene.new(
+        BallSealsKIF.intl("Seal Category"),
+        categories,
+        BallSealsKIF.intl("Choose a category."),
+        @last_category_idx
+      ).main
+      return nil if cat_idx.nil? || cat_idx == 2
+      @last_category_idx = cat_idx
+      # Seal list with sort toggle and collapsible groups — loops so
+      # toggling sort or expanding/collapsing re-renders the list.
+      result = choose_seal_from_category(cat_idx)
+      # nil means user pressed Back in the seal list — return to category
+      next if result == :back
+      return result
+    end
+  end
+
+  # Presents a collapsible, grouped seal list for the given category.
+  # Returns a seal symbol on selection, :back when the user presses Back
+  # (so the caller can return to the category menu), or nil on cancel.
+  def choose_seal_from_category(cat_idx)
+    @last_seal_idx ||= {}
+    @expanded_groups ||= {}
+    @expanded_groups[cat_idx] ||= {}
+
     loop do
       raw_defs = case cat_idx
                  when 0 then BallSealsKIF.shape_seal_defs
                  when 1 then BallSealsKIF.letter_seal_defs
                  end
-      return nil if !raw_defs || raw_defs.empty?
+      return :back if !raw_defs || raw_defs.empty?
       defs = BallSealsKIF.sorted_seal_defs(raw_defs)
-      # First entry is the sort toggle button
-      commands = [BallSealsKIF.sort_mode_label] +
-                 defs.map { |s| "#{s[1]} x#{BallSealsKIF.inventory[s[0]] || 0}" }
-      icons = [nil] + defs.map { |s| BallSealsKIF.bitmap_for(s[0]) }
+
+      # Build collapsible group structure
+      groups = BallSealsKIF.group_seal_defs(defs)
+      expanded = @expanded_groups[cat_idx]
+
+      # Build command list: sort toggle, then group headers / items
+      commands = [BallSealsKIF.sort_mode_label]
+      icons = [nil]
+      # Map from command index to action: :sort, [:group, name], [:seal, def]
+      actions = [:sort]
+
+      groups.each do |group_name, group_defs|
+        is_expanded = expanded[group_name]
+        arrow = is_expanded ? "▼" : "▶"
+        commands << "#{arrow} #{group_name} (#{group_defs.length})"
+        icons << (group_defs.first ? BallSealsKIF.bitmap_for(group_defs.first[0]) : nil)
+        actions << [:group, group_name]
+        if is_expanded
+          group_defs.each do |s|
+            commands << "   #{s[1]} x#{BallSealsKIF.inventory[s[0]] || 0}"
+            icons << BallSealsKIF.bitmap_for(s[0])
+            actions << [:seal, s]
+          end
+        end
+      end
+
+      initial = @last_seal_idx[cat_idx] || 0
+      initial = [initial, commands.length - 1].min
       idx = BallSealsCommandScene.new(
         BallSealsKIF.intl("Choose Seal"),
         commands,
         BallSealsKIF.intl("Choose a seal."),
-        0, nil, icons
+        initial, nil, icons
       ).main
-      return nil if idx.nil?
-      if idx == 0
-        # Toggle sort mode and re-display the list
+
+      if idx.nil?
+        # User pressed Back — return to category menu
+        return :back
+      end
+
+      @last_seal_idx[cat_idx] = idx
+      action = actions[idx]
+
+      if action == :sort
         BallSealsKIF.toggle_seal_sort_mode
         next
+      elsif action.is_a?(Array) && action[0] == :group
+        # Toggle expand/collapse
+        gname = action[1]
+        expanded[gname] = !expanded[gname]
+        next
+      elsif action.is_a?(Array) && action[0] == :seal
+        return action[1][0]
       end
-      return defs[idx - 1][0]
     end
   end
 
@@ -267,24 +560,57 @@ class BallSealsCapsuleEditorScene
   end
 
   def add_seal_flow
-    sym = choose_seal
-    return if !sym
-    placement = BallSealsPlaceScene.new(@slot, sym).main
-    return if !placement
-    @capsule[:placements] ||= []
-    @capsule[:placements] << placement
-    BallSealsKIF.record_seal_use(sym)
-    save_capsule
+    # Loop so the user can add multiple seals without navigating back
+    # through the full menu hierarchy each time.
+    loop do
+      if (@capsule[:placements] || []).length >= BallSealsKIF::MAX_SEALS_PER_CAPSULE
+        pbMessage(BallSealsKIF.intl("That capsule already has {1} seals.", BallSealsKIF::MAX_SEALS_PER_CAPSULE))
+        return
+      end
+      sym = choose_seal
+      return if !sym
+      placement = BallSealsPlaceScene.new(@slot, sym).main
+      if placement
+        @capsule[:placements] ||= []
+        @capsule[:placements] << placement
+        BallSealsKIF.record_seal_use(sym)
+        save_capsule
+        refresh
+      end
+      # After placing (or cancelling placement), loop back to seal list
+    end
   end
 
   def move_seal_flow
-    idx = choose_existing(BallSealsKIF.intl("Move which seal?"))
-    return if idx.nil?
-    pl = @capsule[:placements][idx]
-    moved = BallSealsPlaceScene.new(@slot, pl[:seal], pl[:x], pl[:y]).main
-    return if !moved
-    @capsule[:placements][idx] = moved
-    save_capsule
+    list = (@capsule[:placements] || [])
+    return if list.empty?
+    commands = [
+      BallSealsKIF.intl("Move One Seal"),
+      BallSealsKIF.intl("Move Multiple Seals"),
+      BallSealsKIF.intl("Back")
+    ]
+    choice = BallSealsCommandScene.new(
+      BallSealsKIF.intl("Move Seals"),
+      commands,
+      BallSealsKIF.intl("Choose a move mode.")
+    ).main
+    return if choice.nil? || choice == 2
+    case choice
+    when 0
+      idx = choose_existing(BallSealsKIF.intl("Move which seal?"))
+      return if idx.nil?
+      pl = @capsule[:placements][idx]
+      moved = BallSealsPlaceScene.new(@slot, pl[:seal], pl[:x], pl[:y]).main
+      return if !moved
+      @capsule[:placements][idx] = moved
+      save_capsule
+    when 1
+      result = BallSealsMultiMoveScene.new(@slot, @capsule).main
+      if result
+        @capsule = result
+        save_capsule
+      end
+    end
   end
 
   def remove_seal_flow

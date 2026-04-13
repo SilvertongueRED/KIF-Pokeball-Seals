@@ -107,6 +107,11 @@ class BallSealsSingleMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
+  CURSOR_STEP = 0.03
+  # Max normalised distance from cursor to seal centre for selection
+  SELECTION_THRESHOLD = 0.15
+  CROSSHAIR_COLOR = Color.new(255, 255, 100)
+  HIGHLIGHT_COLOR  = Color.new(100, 200, 255, 100)
 
   def initialize(slot, capsule)
     @slot = slot
@@ -176,18 +181,17 @@ class BallSealsSingleMoveScene
       Graphics.update
       Input.update
 
-      step = 0.03
       if Input.repeat?(Input::LEFT)
-        cx = [[cx - step, 0.0].max, 1.0].min
+        cx = [[cx - CURSOR_STEP, 0.0].max, 1.0].min
       end
       if Input.repeat?(Input::RIGHT)
-        cx = [[cx + step, 0.0].max, 1.0].min
+        cx = [[cx + CURSOR_STEP, 0.0].max, 1.0].min
       end
       if Input.repeat?(Input::UP)
-        cy = [[cy - step, 0.0].max, 1.0].min
+        cy = [[cy - CURSOR_STEP, 0.0].max, 1.0].min
       end
       if Input.repeat?(Input::DOWN)
-        cy = [[cy + step, 0.0].max, 1.0].min
+        cy = [[cy + CURSOR_STEP, 0.0].max, 1.0].min
       end
 
       if Input.trigger?(Input::USE)
@@ -212,15 +216,14 @@ class BallSealsSingleMoveScene
       Graphics.update
       Input.update
 
-      step = 0.03
       if Input.repeat?(Input::LEFT)
-        off_x -= step
+        off_x -= CURSOR_STEP
       end
       if Input.repeat?(Input::RIGHT)
-        off_x += step
+        off_x += CURSOR_STEP
       end
       if Input.repeat?(Input::UP)
-        off_y -= step
+        off_y -= CURSOR_STEP
       end
       if Input.repeat?(Input::DOWN)
         off_y += step
@@ -251,7 +254,7 @@ class BallSealsSingleMoveScene
       end
     end
     # Only select if within a reasonable range (approx half icon size on canvas)
-    threshold = 0.15
+    threshold = SELECTION_THRESHOLD
     best_dist <= threshold * threshold ? best_idx : nil
   end
 
@@ -259,7 +262,7 @@ class BallSealsSingleMoveScene
     bmp = @sprites["overlay"].bitmap
     px = (cx * CANVAS_W).to_i
     py = (cy * CANVAS_H).to_i
-    c = Color.new(255, 255, 100)
+    c = CROSSHAIR_COLOR
     hx = [px - 5, 0].max
     hw = [[px + 6, CANVAS_W].min - hx, 0].max
     bmp.fill_rect(hx, py, hw, 1, c)
@@ -274,9 +277,8 @@ class BallSealsSingleMoveScene
     bmp = @sprites["overlay"].bitmap
     px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
     py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
-    highlight = Color.new(100, 200, 255, 100)
     size = BallSealsKIF::CANVAS_ICON_SIZE + 4
-    bmp.fill_rect(px - size / 2, py - size / 2, size, size, highlight)
+    bmp.fill_rect(px - size / 2, py - size / 2, size, size, HIGHLIGHT_COLOR)
   end
 
   def refresh_canvas
@@ -296,9 +298,8 @@ class BallSealsSingleMoveScene
       bmp = @sprites["canvas"].bitmap
       px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
       py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
-      highlight = Color.new(100, 200, 255, 100)
       size = BallSealsKIF::CANVAS_ICON_SIZE + 4
-      bmp.fill_rect(px - size / 2, py - size / 2, size, size, highlight)
+      bmp.fill_rect(px - size / 2, py - size / 2, size, size, HIGHLIGHT_COLOR)
     end
   end
 
@@ -467,10 +468,10 @@ class BallSealsMultiMoveScene
         off_x += step
       end
       if Input.repeat?(Input::UP)
-        off_y -= step
+        off_y -= CURSOR_STEP
       end
       if Input.repeat?(Input::DOWN)
-        off_y += step
+        off_y += CURSOR_STEP
       end
       if Input.trigger?(Input::USE)
         # Apply the offset to selected seals

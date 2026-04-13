@@ -61,7 +61,8 @@ module BallSealsKIF
         if opp_is_triples && slot == 2
           y -= (Graphics.height * OPPONENT_TRIPLES_THIRD_RAISE_PCT).to_i
         end
-        burst_delay = base_delay + (opp_ball_index * MULTI_BALL_STAGGER)
+        extra = opp_ball_index > 0 ? VANILLA_GHOST_EXTRA_BALL_DELAY : 0
+        burst_delay = base_delay + (opp_ball_index * MULTI_BALL_STAGGER) + extra
         start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
         log("DBG: Triggered opponent seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
         opp_ball_index += 1
@@ -104,7 +105,8 @@ module BallSealsKIF
         end
         # Stagger each successive pokeball's seal burst so they animate
         # sequentially rather than all at once.
-        burst_delay = base_delay + (player_ball_index * MULTI_BALL_STAGGER)
+        extra = player_ball_index > 0 ? VANILLA_GHOST_EXTRA_BALL_DELAY : 0
+        burst_delay = base_delay + (player_ball_index * MULTI_BALL_STAGGER) + extra
         start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
         log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
         player_ball_index += 1

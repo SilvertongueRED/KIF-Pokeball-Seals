@@ -45,7 +45,7 @@ module BallSealsKIF
       if is_opponent
         x, y = opponent_battler_burst_pos(scene, sprites, idxBattler, pkmn)
         # Doubles/triples adjustments for opponent-side seal bursts.
-        slot = ((idxBattler || 1) / 2)
+        slot = ((idxBattler || 0) / 2)
         slot = 0 if !slot.is_a?(Integer)
         if opp_is_doubles
           if slot == 0
@@ -196,7 +196,7 @@ module BallSealsKIF
     #    so (idx / 2) gives the slot number within the opponent's team.
     #    Opponent sprites are in the upper half of the screen, offset by
     #    OPPONENT_Y_LOWER_PCT to keep seals above the sprite.
-    slot = ((idxBattler || 1) / 2) rescue 0
+    slot = ((idxBattler || 0) / 2) rescue 0
     dx   = slot * (Graphics.width / 8)
     base_y = (Graphics.height / 4) - y_offset + (Graphics.height * OPPONENT_Y_LOWER_PCT).to_i
     [Graphics.width * 3 / 4 - dx, base_y]

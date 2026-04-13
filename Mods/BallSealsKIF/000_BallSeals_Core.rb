@@ -1307,6 +1307,9 @@ module BallSealsKIF
     #    battle or trade so the data survives Marshal serialization to the
     #    remote client.  This is how an opponent's seals become visible.
     if pkmn.respond_to?(:ball_seal_placements) && pkmn.ball_seal_placements.is_a?(Array) && !pkmn.ball_seal_placements.empty?
+      # Re-resolve seal symbols through LEGACY_SEAL_MAP in case the data
+      # was baked on an older version with renamed seals, and ensure
+      # coords are Floats (Marshal may have preserved Integer 0/1).
       placements = pkmn.ball_seal_placements.map do |p|
         { :seal => resolve_seal_sym(p[:seal]), :x => p[:x].to_f, :y => p[:y].to_f }
       end

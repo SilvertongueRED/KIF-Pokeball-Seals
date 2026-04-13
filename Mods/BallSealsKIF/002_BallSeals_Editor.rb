@@ -98,6 +98,218 @@ class BallSealsPlaceScene
   end
 end
 
+# Single-move scene: show capsule canvas with a cursor, let the user
+# navigate to a seal and select it with the action button, then move it
+# with D-pad and place it with the action button — matching the UX of
+# the multi-move scene.
+class BallSealsSingleMoveScene
+  CANVAS_X = 16
+  CANVAS_Y = 72
+  CANVAS_W = 240
+  CANVAS_H = 176
+  CURSOR_STEP = 0.03
+  # Max normalised distance from cursor to seal centre for selection
+  SELECTION_THRESHOLD = 0.15
+  CROSSHAIR_COLOR = Color.new(255, 255, 100)
+  HIGHLIGHT_COLOR  = Color.new(100, 200, 255, 100)
+
+  def initialize(slot, capsule)
+    @slot = slot
+    @capsule = BallSealsKIF.clone_capsule(capsule)
+  end
+
+  def main
+    @viewport = Viewport.new(0, 0, Graphics.width, Graphics.height)
+    @viewport.z = 99999
+    @sprites = {}
+    @sprites["bg"] = Sprite.new(@viewport)
+    @sprites["bg"].bitmap = Bitmap.new(Graphics.width, Graphics.height)
+    @sprites["bg"].bitmap.fill_rect(0, 0, Graphics.width, Graphics.height, Color.new(14, 18, 24))
+    capsule_bg = BallSealsKIF.gui_bitmap(:capsule_bg)
+    if capsule_bg
+      dest = Rect.new(8, 64, 256, 192)
+      src  = Rect.new(0, 0, capsule_bg.width, capsule_bg.height)
+      @sprites["bg"].bitmap.stretch_blt(dest, capsule_bg, src)
+    end
+    @sprites["title"] = Window_UnformattedTextPokemon.newWithSize("", 0, 0, Graphics.width, 64, @viewport)
+    @sprites["title"].text = BallSealsKIF.intl("Move Seal: Select")
+    @sprites["canvas"] = Sprite.new(@viewport)
+    @sprites["canvas"].bitmap = Bitmap.new(CANVAS_W, CANVAS_H)
+    @sprites["canvas"].x = CANVAS_X
+    @sprites["canvas"].y = CANVAS_Y
+    @sprites["overlay"] = Sprite.new(@viewport)
+    @sprites["overlay"].bitmap = Bitmap.new(CANVAS_W, CANVAS_H)
+    @sprites["overlay"].x = CANVAS_X
+    @sprites["overlay"].y = CANVAS_Y
+    @sprites["overlay"].z = @viewport.z + 1
+    @sprites["help"] = Window_UnformattedTextPokemon.newWithSize("", 0, Graphics.height - 88, Graphics.width, 88, @viewport)
+
+    # Phase 1: Navigate cursor to a seal and select it
+    @sprites["help"].text = BallSealsKIF.intl("D-Pad: Move cursor  Confirm: Select seal  Back: Cancel")
+    refresh_canvas
+    selected = select_phase
+    if selected.nil?
+      dispose
+      return nil
+    end
+
+    # Phase 2: Move the selected seal
+    @sprites["title"].text = BallSealsKIF.intl("Move Seal: Place")
+    @sprites["help"].text = BallSealsKIF.intl("D-Pad: Move  Confirm: Place  Back: Cancel")
+    result = move_phase(selected)
+    dispose
+    return result
+  end
+
+  def select_phase
+    placements = @capsule[:placements] || []
+    return nil if placements.empty?
+    # Start cursor at the first seal's position
+    cx = placements[0][:x].to_f
+    cy = placements[0][:y].to_f
+
+    loop do
+      refresh_canvas
+      # Draw cursor crosshair and highlight the nearest seal
+      @sprites["overlay"].bitmap.clear
+      nearest = nearest_seal(cx, cy)
+      if nearest
+        draw_seal_highlight(nearest)
+      end
+      draw_crosshair(cx, cy)
+
+      Graphics.update
+      Input.update
+
+      if Input.repeat?(Input::LEFT)
+        cx = [[cx - CURSOR_STEP, 0.0].max, 1.0].min
+      end
+      if Input.repeat?(Input::RIGHT)
+        cx = [[cx + CURSOR_STEP, 0.0].max, 1.0].min
+      end
+      if Input.repeat?(Input::UP)
+        cy = [[cy - CURSOR_STEP, 0.0].max, 1.0].min
+      end
+      if Input.repeat?(Input::DOWN)
+        cy = [[cy + CURSOR_STEP, 0.0].max, 1.0].min
+      end
+
+      if Input.trigger?(Input::USE)
+        idx = nearest_seal(cx, cy)
+        return idx if idx
+      end
+
+      if Input.trigger?(Input::BACK)
+        return nil
+      end
+    end
+  end
+
+  def move_phase(seal_index)
+    pl = @capsule[:placements][seal_index]
+    off_x = 0.0
+    off_y = 0.0
+
+    loop do
+      refresh_canvas_with_offset(seal_index, off_x, off_y)
+
+      Graphics.update
+      Input.update
+
+      if Input.repeat?(Input::LEFT)
+        off_x -= CURSOR_STEP
+      end
+      if Input.repeat?(Input::RIGHT)
+        off_x += CURSOR_STEP
+      end
+      if Input.repeat?(Input::UP)
+        off_y -= CURSOR_STEP
+      end
+      if Input.repeat?(Input::DOWN)
+        off_y += step
+      end
+      if Input.trigger?(Input::USE)
+        pl[:x] = [[pl[:x].to_f + off_x, 0.0].max, 1.0].min
+        pl[:y] = [[pl[:y].to_f + off_y, 0.0].max, 1.0].min
+        return @capsule
+      elsif Input.trigger?(Input::BACK)
+        return nil
+      end
+    end
+  end
+
+  # Returns the index of the placement nearest to the cursor, or nil.
+  def nearest_seal(cx, cy)
+    placements = @capsule[:placements] || []
+    return nil if placements.empty?
+    best_idx = nil
+    best_dist = Float::INFINITY
+    placements.each_with_index do |pl, i|
+      dx = pl[:x].to_f - cx
+      dy = pl[:y].to_f - cy
+      dist = dx * dx + dy * dy
+      if dist < best_dist
+        best_dist = dist
+        best_idx = i
+      end
+    end
+    # Only select if within a reasonable range (approx half icon size on canvas)
+    threshold = SELECTION_THRESHOLD
+    best_dist <= threshold * threshold ? best_idx : nil
+  end
+
+  def draw_crosshair(cx, cy)
+    bmp = @sprites["overlay"].bitmap
+    px = (cx * CANVAS_W).to_i
+    py = (cy * CANVAS_H).to_i
+    c = CROSSHAIR_COLOR
+    hx = [px - 5, 0].max
+    hw = [[px + 6, CANVAS_W].min - hx, 0].max
+    bmp.fill_rect(hx, py, hw, 1, c)
+    vy_start = [py - 5, 0].max
+    vh = [[py + 6, CANVAS_H].min - vy_start, 0].max
+    bmp.fill_rect(px, vy_start, 1, vh, c)
+  end
+
+  def draw_seal_highlight(seal_index)
+    pl = @capsule[:placements][seal_index]
+    return if !pl
+    bmp = @sprites["overlay"].bitmap
+    px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
+    py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
+    size = BallSealsKIF::CANVAS_ICON_SIZE + 4
+    bmp.fill_rect(px - size / 2, py - size / 2, size, size, HIGHLIGHT_COLOR)
+  end
+
+  def refresh_canvas
+    BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, @capsule)
+  end
+
+  def refresh_canvas_with_offset(seal_index, off_x, off_y)
+    temp_cap = BallSealsKIF.clone_capsule(@capsule)
+    pl = temp_cap[:placements][seal_index]
+    if pl
+      pl[:x] = [[pl[:x].to_f + off_x, 0.0].max, 1.0].min
+      pl[:y] = [[pl[:y].to_f + off_y, 0.0].max, 1.0].min
+    end
+    BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, temp_cap)
+    # Highlight the moving seal
+    if pl
+      bmp = @sprites["canvas"].bitmap
+      px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
+      py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
+      size = BallSealsKIF::CANVAS_ICON_SIZE + 4
+      bmp.fill_rect(px - size / 2, py - size / 2, size, size, HIGHLIGHT_COLOR)
+    end
+  end
+
+  def dispose
+    pbDisposeSpriteHash(@sprites) if @sprites
+    @viewport.dispose if @viewport && !@viewport.disposed?
+  rescue
+  end
+end
+
 # Multi-move scene: draw capsule canvas, let user drag a selection box
 # to select multiple seals, then move them all by an offset.
 class BallSealsMultiMoveScene
@@ -256,10 +468,10 @@ class BallSealsMultiMoveScene
         off_x += step
       end
       if Input.repeat?(Input::UP)
-        off_y -= step
+        off_y -= CURSOR_STEP
       end
       if Input.repeat?(Input::DOWN)
-        off_y += step
+        off_y += CURSOR_STEP
       end
       if Input.trigger?(Input::USE)
         # Apply the offset to selected seals
@@ -606,13 +818,11 @@ class BallSealsCapsuleEditorScene
     return if choice.nil? || choice == 2
     case choice
     when 0
-      idx = choose_existing(BallSealsKIF.intl("Move which seal?"))
-      return if idx.nil?
-      pl = @capsule[:placements][idx]
-      moved = BallSealsPlaceScene.new(@slot, pl[:seal], pl[:x], pl[:y]).main
-      return if !moved
-      @capsule[:placements][idx] = moved
-      save_capsule
+      result = BallSealsSingleMoveScene.new(@slot, @capsule).main
+      if result
+        @capsule = result
+        save_capsule
+      end
     when 1
       result = BallSealsMultiMoveScene.new(@slot, @capsule).main
       if result

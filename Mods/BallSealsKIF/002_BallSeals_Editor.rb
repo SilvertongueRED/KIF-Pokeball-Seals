@@ -173,8 +173,12 @@ class BallSealsMultiMoveScene
       px = (cx * CANVAS_W).to_i
       py = (cy * CANVAS_H).to_i
       c = Color.new(255, 255, 100)
-      @sprites["overlay"].bitmap.fill_rect([px - 5, 0].max, py, [11, CANVAS_W].min, 1, c)
-      @sprites["overlay"].bitmap.fill_rect(px, [py - 5, 0].max, 1, [11, CANVAS_H].min, c)
+      hx = [px - 5, 0].max
+      hw = [[px + 6, CANVAS_W].min - hx, 0].max
+      @sprites["overlay"].bitmap.fill_rect(hx, py, hw, 1, c)
+      vy_start = [py - 5, 0].max
+      vh = [[py + 6, CANVAS_H].min - vy_start, 0].max
+      @sprites["overlay"].bitmap.fill_rect(px, vy_start, 1, vh, c)
 
       Graphics.update
       Input.update
@@ -244,15 +248,20 @@ class BallSealsMultiMoveScene
       Input.update
 
       step = 0.03
+      # Use independent if-checks (not elsif) to allow diagonal movement
       if Input.repeat?(Input::LEFT)
         off_x -= step
-      elsif Input.repeat?(Input::RIGHT)
+      end
+      if Input.repeat?(Input::RIGHT)
         off_x += step
-      elsif Input.repeat?(Input::UP)
+      end
+      if Input.repeat?(Input::UP)
         off_y -= step
-      elsif Input.repeat?(Input::DOWN)
+      end
+      if Input.repeat?(Input::DOWN)
         off_y += step
-      elsif Input.trigger?(Input::USE)
+      end
+      if Input.trigger?(Input::USE)
         # Apply the offset to selected seals
         selected_indices.each do |i|
           pl = @capsule[:placements][i]

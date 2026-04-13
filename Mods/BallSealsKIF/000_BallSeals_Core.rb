@@ -1092,6 +1092,35 @@ module BallSealsKIF
     @seal_sort_mode = (@seal_sort_mode == :alpha) ? :recent : :alpha
   end
 
+  # Groups an array of seal defs by their category prefix.
+  # E.g. "Heart Seal Red" groups under "Heart Seal", "A Seal Red" under "A Seal".
+  # Returns an array of [group_name, [seal_defs...]] pairs preserving order.
+  def self.group_seal_defs(defs)
+    groups = {}
+    order = []
+    defs.each do |s|
+      name = s[1].to_s
+      # Extract group name: everything before the last word (color)
+      # "Heart Seal Red" => "Heart Seal"
+      # "A Seal Pink" => "A Seal"
+      # "Exclamation Mark Seal Orange" => "Exclamation Mark Seal"
+      parts = name.split(" ")
+      if parts.length >= 3
+        group = parts[0..-2].join(" ")
+      elsif parts.length == 2
+        group = parts[0]
+      else
+        group = name
+      end
+      if !groups[group]
+        groups[group] = []
+        order << group
+      end
+      groups[group] << s
+    end
+    order.map { |g| [g, groups[g]] }
+  end
+
   # Returns true if the seal symbol corresponds to a letter or punctuation seal.
   def self.letter_seal?(sym)
     name = seal_name(sym).to_s
@@ -1582,8 +1611,8 @@ module BallSealsKIF
       # Map normalised 0..1 placement coords to pixel offsets from burst
       # centre.  Uses 3/4 of the screen dimensions as the spread area so
       # seals fan out proportionally on any resolution.
-      spread_w = (Graphics.width  * 0.75).to_i
-      spread_h = (Graphics.height * 0.75).to_i
+      spread_w = (Graphics.width  * 0.77).to_i
+      spread_h = (Graphics.height * 0.77).to_i
       ox = ((pl[:x].to_f - 0.5) * spread_w).to_i
       oy = ((pl[:y].to_f - 0.5) * spread_h).to_i
       sp = Sprite.new(overlay)

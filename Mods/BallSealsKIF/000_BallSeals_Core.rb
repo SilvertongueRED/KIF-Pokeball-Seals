@@ -1604,10 +1604,13 @@ module BallSealsKIF
 
   # Ghost Classic+ doubles: raise LEFT pokémon's seal burst by 6% of
   # screen height, lower RIGHT pokémon's seal burst by 3%, plus an
-  # extra 7% raise for the right pokémon.
-  GHOST_DOUBLES_LEFT_RAISE_PCT       = 0.06
-  GHOST_DOUBLES_RIGHT_LOWER_PCT      = 0.03
+  # extra 7% raise for the right pokémon.  Additionally lower the
+  # rightmost pokémon's seal animation by 8% when two pokémon are on
+  # one side of the field.
+  GHOST_DOUBLES_LEFT_RAISE_PCT        = 0.06
+  GHOST_DOUBLES_RIGHT_LOWER_PCT       = 0.03
   GHOST_DOUBLES_RIGHT_EXTRA_RAISE_PCT = 0.07
+  GHOST_DOUBLES_RIGHT_ANIM_LOWER_PCT  = 0.08
 
   # Normal battle UI (EBDX off, no Ghost Classic+) doubles: raise LEFT
   # pokémon's seal burst by 6% of screen height, raise RIGHT by 5%.

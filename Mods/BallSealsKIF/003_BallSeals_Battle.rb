@@ -52,6 +52,10 @@ module BallSealsKIF
             x -= (Graphics.width * OPPONENT_DOUBLES_LEFT_X_SHIFT_PCT).to_i
           elsif slot >= 1
             x += (Graphics.width * OPPONENT_DOUBLES_RIGHT_X_SHIFT_PCT).to_i
+            # Ghost Classic+: lower the rightmost opponent's seal animation by 8%
+            if ghost_classic_installed?
+              y += (Graphics.height * GHOST_DOUBLES_RIGHT_ANIM_LOWER_PCT).to_i
+            end
           end
         end
         if opp_is_triples && slot == 2
@@ -81,6 +85,8 @@ module BallSealsKIF
               y += (Graphics.height * GHOST_DOUBLES_RIGHT_LOWER_PCT).to_i
               # Additional 7% raise for the right pokémon in doubles
               y -= (Graphics.height * GHOST_DOUBLES_RIGHT_EXTRA_RAISE_PCT).to_i
+              # Lower the rightmost pokémon's seal animation by 8%
+              y += (Graphics.height * GHOST_DOUBLES_RIGHT_ANIM_LOWER_PCT).to_i
             end
           else
             # Normal battle UI (EBDX off, no Ghost): raise left by 6%,

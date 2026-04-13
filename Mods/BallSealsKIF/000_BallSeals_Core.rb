@@ -1303,9 +1303,18 @@ module BallSealsKIF
 
   def self.capsule_for_pokemon(pkmn)
     return nil if !pkmn
-    # 1) Baked placements — set by bake_capsule_to_pokemon before a link
+    # 1) Capsule slot (local save data — always reflects the latest user
+    #    assignment, so it must be checked first).
+    slot = nil
+    slot = pkmn.ball_capsule_slot if pkmn.respond_to?(:ball_capsule_slot)
+    if slot && slot >= 1 && slot <= MAX_CAPSULES
+      cap = capsule(slot)
+      return clone_capsule(cap) if cap
+    end
+    # 2) Baked placements — set by bake_capsule_to_pokemon before a link
     #    battle or trade so the data survives Marshal serialization to the
-    #    remote client.  This is how an opponent's seals become visible.
+    #    remote client.  This is the fallback for when capsule slot data
+    #    is unavailable (e.g. on the opponent's client).
     if pkmn.respond_to?(:ball_seal_placements) && pkmn.ball_seal_placements.is_a?(Array) && !pkmn.ball_seal_placements.empty?
       # Re-resolve seal symbols through LEGACY_SEAL_MAP in case the data
       # was baked on an older version with renamed seals, and ensure
@@ -1314,13 +1323,6 @@ module BallSealsKIF
         { :seal => resolve_seal_sym(p[:seal]), :x => p[:x].to_f, :y => p[:y].to_f }
       end
       return { :name => "Baked", :placements => placements }
-    end
-    # 2) Capsule slot (local save data — works for the local player)
-    slot = nil
-    slot = pkmn.ball_capsule_slot if pkmn.respond_to?(:ball_capsule_slot)
-    if slot && slot >= 1 && slot <= MAX_CAPSULES
-      cap = capsule(slot)
-      return clone_capsule(cap) if cap
     end
     # 3) Legacy direct seal array
     if pkmn.respond_to?(:ball_seals) && pkmn.ball_seals && !pkmn.ball_seals.empty?
@@ -1351,6 +1353,9 @@ module BallSealsKIF
 
   def self.bake_capsule_to_pokemon(pkmn)
     return if !pkmn
+    # Clear stale baked data so we always resolve fresh from the current
+    # capsule slot rather than potentially re-using outdated placements.
+    pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)
     # Resolve from local capsule slot or legacy seals
     slot = pkmn.respond_to?(:ball_capsule_slot) ? pkmn.ball_capsule_slot : nil
     cap = nil

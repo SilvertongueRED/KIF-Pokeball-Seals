@@ -884,6 +884,7 @@ class BallSealsCapsuleEditorScene
     pkmn = BallSealsKIF.choose_party_pokemon(BallSealsKIF.intl("Assign this capsule to which Pokémon?"))
     return if !pkmn
     pkmn.ball_capsule_slot = @slot
+    pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)
     pbMessage(BallSealsKIF.intl("Assigned {1} to {2}.", @capsule[:name], pkmn.name))
   end
 

@@ -1655,8 +1655,9 @@ module BallSealsKIF
   # open at once (e.g. doubles/triples).  The first pokeball's seals
   # play immediately; each subsequent pokeball is delayed by this
   # many additional frames so they animate sequentially.
-  # 20 frames ≈ 1 second at 20fps — enough separation to be visible.
-  MULTI_BALL_STAGGER = 20
+  # 30 frames = 1.5 seconds at 20fps — gives each seal animation
+  # enough time to play uninterrupted before the next pokeball opens.
+  MULTI_BALL_STAGGER = 30
 
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.

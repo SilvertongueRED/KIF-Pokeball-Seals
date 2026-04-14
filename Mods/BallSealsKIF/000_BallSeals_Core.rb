@@ -36,6 +36,42 @@ module BallSealsKIF
   def self.seal_sort_mode; @seal_sort_mode; end
   def self.seal_sort_mode=(v); @seal_sort_mode = v; end
 
+  # ── Animation types ──────────────────────────────────────────────
+  # Available animation styles for seal burst effects.  Each capsule
+  # stores per-group overrides in :anim_settings; missing keys fall
+  # back to DEFAULT_ANIM_SETTINGS.
+  ANIM_TYPES = [:static, :sparkle, :throb, :rolling, :wiggle, :staggered]
+  ANIM_TYPE_NAMES = {
+    :static    => "Static",
+    :sparkle   => "Sparkle",
+    :throb     => "Throb",
+    :rolling   => "Rolling",
+    :wiggle    => "Wiggle",
+    :staggered => "Staggered"
+  }
+
+  # Seal groups for animation assignment.  Each capsule can have a
+  # different animation type per group.
+  ANIM_GROUPS = [:heart, :sparkle, :letter, :other]
+  ANIM_GROUP_NAMES = {
+    :heart   => "Heart Seals",
+    :sparkle => "Sparkle Seals",
+    :letter  => "Letter Seals",
+    :other   => "Other Seals"
+  }
+  DEFAULT_ANIM_SETTINGS = {
+    :heart   => :throb,
+    :sparkle => :sparkle,
+    :letter  => :static,
+    :other   => :static
+  }
+
+  # ── Multi-pokémon dimming ────────────────────────────────────────
+  # When multiple pokémon are sent out (doubles/triples), previously
+  # released pokémon's seal effects are dimmed to this opacity while
+  # a newer pokémon's seals are actively animating (hold phase).
+  MULTI_DIM_OPACITY = 100
+
   # ── Asset folder paths (relative to game root) ───────────────────
   GRAPHICS_BASE  = File.join("Graphics", "BallSeals")
   ICONS_DIR      = File.join(GRAPHICS_BASE, "Icons")
@@ -732,6 +768,13 @@ module BallSealsKIF
   @seal_overlay_vp = nil
   @sprite_bounds_cache ||= {}
 
+  # ── Burst group tracking ────────────────────────────────────────
+  # Tracks groups of seal fx entries that belong to the same capsule
+  # burst, keyed by an incrementing burst group ID.  Used for multi-
+  # pokémon dimming (earlier bursts dim while the newest is active).
+  @burst_group_counter ||= 0
+  @burst_groups ||= {}
+
   # ── Sprite bounds detection ──────────────────────────────────────
   # Scans a bitmap's alpha channel to find the non-transparent bounding
   # box.  Returns { :top => y, :bottom => y, :left => x, :right => x,
@@ -1127,6 +1170,26 @@ module BallSealsKIF
     letter_style_seal_name?(name)
   end
 
+  # Returns the animation group (:heart, :sparkle, :letter, :other)
+  # for a given seal symbol.
+  def self.seal_anim_group(sym)
+    sym = resolve_seal_sym(sym)
+    s = sym.to_s
+    return :heart   if s.start_with?("HEART_")
+    return :sparkle if s.start_with?("SPARKLE_")
+    return :letter  if letter_seal?(sym)
+    :other
+  end
+
+  # Returns the animation type for a seal within a given capsule,
+  # honouring per-capsule overrides and falling back to defaults.
+  def self.capsule_anim_type(cap, sym)
+    group = seal_anim_group(sym)
+    settings = (cap && cap[:anim_settings].is_a?(Hash)) ? cap[:anim_settings] : DEFAULT_ANIM_SETTINGS
+    type = settings[group] || DEFAULT_ANIM_SETTINGS[group] || :static
+    ANIM_TYPES.include?(type) ? type : :static
+  end
+
   # Creates a new bitmap with a 1px black outline around the original.
   # Used for letter/punctuation seals in battle bursts for readability.
   @outlined_bitmaps ||= {}
@@ -1248,7 +1311,8 @@ module BallSealsKIF
       :name => (cap[:name] || "CAPSULE"),
       :placements => (cap[:placements] || []).map { |p|
         { :seal => resolve_seal_sym(p[:seal]), :x => p[:x], :y => p[:y] }
-      }
+      },
+      :anim_settings => (cap[:anim_settings] || {}).dup
     }
   end
 
@@ -1732,13 +1796,20 @@ module BallSealsKIF
       # :hold keeps seals at full opacity for ~2 seconds (40 frames at 20fps)
       # before the fade-out begins.
       started = burst_delay <= 0
+      anim_type = capsule_anim_type(cap, sym)
       @active_fx << { :vp => overlay, :frames => 36, :delay => burst_delay,
-                      :hold => 40, :started => started, :particles => particles }
+                      :hold => 40, :hold_total => 40, :started => started,
+                      :particles => particles, :anim_type => anim_type,
+                      :seal_index => seal_idx, :total_seals => sorted.length,
+                      :base_x => sp.x, :base_y => sp.y,
+                      :burst_group => @burst_group_counter }
       # Make visible immediately only when there is no burst delay
-      if started
+      # (staggered animation keeps seals invisible until their slot)
+      if started && anim_type != :staggered
         particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
       end
     end
+    @burst_group_counter = (@burst_group_counter || 0) + 1
     safe_play_se("Pkmn send out")
     log("DBG: Started capsule burst with #{cap[:placements].length} placements at (#{x},#{y}) on overlay viewport z=#{SEAL_OVERLAY_Z}")
   rescue => e
@@ -1754,6 +1825,29 @@ module BallSealsKIF
   def self.update_effects
     return if !@active_fx || @active_fx.empty?
     keep = []
+    # ── Multi-pokémon dimming ──────────────────────────────────────
+    # Find the highest burst_group that is currently in its hold phase
+    # (actively animating).  Earlier groups get dimmed.
+    newest_active_group = nil
+    @active_fx.each do |fx|
+      next if !fx[:started] || fx[:started] == false
+      next if fx[:delay] && fx[:delay] > 0
+      if fx[:hold] && fx[:hold] > 0 && fx[:burst_group]
+        if newest_active_group.nil? || fx[:burst_group] > newest_active_group
+          newest_active_group = fx[:burst_group]
+        end
+      end
+    end
+
+    # Dim/restore battler sprites for multi-pokémon visibility
+    if newest_active_group
+      begin
+        dim_earlier_battler_sprites(newest_active_group)
+      rescue NoMethodError
+        # Method defined in 003_BallSeals_Battle.rb; safe to skip if not loaded
+      end
+    end
+
     @active_fx.each do |fx|
       # Handle staggered delay — wait before starting animation
       if fx[:delay] && fx[:delay] > 0
@@ -1762,20 +1856,38 @@ module BallSealsKIF
         next
       end
       # First frame after delay expires: make particles visible
+      # (staggered animation keeps seals invisible until their slot)
       if fx[:started] == false
         fx[:started] = true
-        fx[:particles].each do |p|
-          sp = p[0]
-          sp.opacity = 255 if sp && !sp.disposed?
+        anim_type = fx[:anim_type] || :static
+        if anim_type != :staggered
+          fx[:particles].each do |p|
+            sp = p[0]
+            sp.opacity = 255 if sp && !sp.disposed?
+          end
         end
       end
       # Hold phase — keep seals at full opacity for :hold frames (~2 s)
-      # before beginning the fade-out.
+      # before beginning the fade-out, applying per-type animations.
       if fx[:hold] && fx[:hold] > 0
         fx[:hold] -= 1
+        apply_hold_animation(fx)
+        # Multi-pokémon dimming: if a newer burst group is in hold,
+        # dim this group's particles.
+        if newest_active_group && fx[:burst_group] &&
+           fx[:burst_group] < newest_active_group
+          fx[:particles].each do |p|
+            sp = p[0]
+            next if !sp || sp.disposed?
+            sp.opacity = [sp.opacity, MULTI_DIM_OPACITY].min
+          end
+        end
         keep << fx
         next
       end
+      # Reset animation state (zoom, angle, position) before the
+      # fade-out begins so the fade is clean regardless of anim type.
+      reset_animation_state(fx)
       fx[:frames] -= 1
       denom = [1, fx[:frames] + 1].max
       fx[:particles].each do |p|
@@ -1802,9 +1914,101 @@ module BallSealsKIF
     @active_fx = keep
     # When all seal effects have finished, dispose the overlay viewport
     # so it does not linger and interfere with other scenes.
-    dispose_seal_overlay_viewport if keep.empty?
+    if keep.empty?
+      dispose_seal_overlay_viewport
+      begin
+        restore_battler_sprites
+      rescue NoMethodError
+        # Method defined in 003_BallSeals_Battle.rb; safe to skip if not loaded
+      end
+      @burst_group_counter = 0
+    end
   rescue => e
     log("update_effects ERROR: #{e.class}: #{e.message}")
+  end
+
+  # ── Hold-phase animation dispatch ──────────────────────────────────
+  # Applies the chosen animation style to an fx entry during its hold
+  # phase.  Called once per frame while :hold > 0.
+  def self.apply_hold_animation(fx)
+    anim_type = fx[:anim_type] || :static
+    return if anim_type == :static
+
+    hold_total = fx[:hold_total] || 40
+    elapsed = hold_total - (fx[:hold] || 0)
+
+    fx[:particles].each do |p|
+      sp = p[0]
+      next if !sp || sp.disposed?
+
+      case anim_type
+      when :sparkle
+        # Rapid twinkling: modulate zoom and opacity
+        twinkle = Math.sin(elapsed * 0.8) * 0.3
+        sp.zoom_x = FX_SCALE + twinkle
+        sp.zoom_y = FX_SCALE + twinkle
+        sp.opacity = 200 + (Math.sin(elapsed * 1.2) * 55).to_i
+
+      when :throb
+        # Heartbeat: sharp expand then slow contract, 20-frame cycle
+        cycle = elapsed % 20
+        if cycle < 4
+          scale_mod = (cycle / 4.0) * 0.5
+        else
+          scale_mod = (1.0 - (cycle - 4) / 16.0) * 0.5
+        end
+        sp.zoom_x = FX_SCALE + scale_mod
+        sp.zoom_y = FX_SCALE + scale_mod
+
+      when :rolling
+        # Wave-like vertical oscillation with per-seal phase offsets
+        total = [fx[:total_seals] || 1, 1].max
+        phase_offset = (fx[:seal_index] || 0) * (Math::PI * 2.0 / total)
+        wave = Math.sin(elapsed * 0.25 + phase_offset) * 6
+        sp.y = (fx[:base_y] || sp.y) + wave.to_i
+
+      when :wiggle
+        # Small angle oscillation in place
+        sp.angle = Math.sin(elapsed * 0.5) * 10
+
+      when :staggered
+        # Seals fade in one at a time within the hold window
+        total = [fx[:total_seals] || 1, 1].max
+        idx   = fx[:seal_index] || 0
+        stagger_interval = [(hold_total.to_f / total).ceil, 1].max
+        seal_start = idx * stagger_interval
+        fade_in = 4
+        if elapsed < seal_start
+          sp.opacity = 0
+        elsif elapsed < seal_start + fade_in
+          sp.opacity = ((elapsed - seal_start).to_f / fade_in * 255).to_i
+        else
+          sp.opacity = 255
+        end
+      end
+    end
+  rescue => e
+    log("apply_hold_animation ERROR: #{e.class}: #{e.message}")
+  end
+
+  # Resets sprite state (zoom, angle, position) to defaults before
+  # the fade-out begins.  Ensures a clean transition regardless of
+  # which hold-phase animation was active.
+  def self.reset_animation_state(fx)
+    anim_type = fx[:anim_type] || :static
+    return if anim_type == :static
+
+    fx[:particles].each do |p|
+      sp = p[0]
+      next if !sp || sp.disposed?
+      sp.zoom_x = FX_SCALE
+      sp.zoom_y = FX_SCALE
+      sp.angle  = 0
+      sp.y      = fx[:base_y] if fx[:base_y]
+      sp.opacity = 255
+    end
+  rescue => e
+    log("reset_animation_state ERROR: #{e.class}: #{e.message}")
   end
 
   # ── Viewport helpers ──────────────────────────────────────────────

@@ -1,5 +1,61 @@
 # 003_BallSeals_Battle.rb
 module BallSealsKIF
+  # ── Battler sprite dimming for multi-pokémon sends ────────────────
+  # Tracks battler sprite keys per burst group so update_effects can
+  # dim earlier pokémon sprites when a newer burst group is animating.
+  @battler_sprite_refs ||= {}   # burst_group => [{ :scene, :key }]
+
+  def self.register_battler_sprite(burst_group, scene, sprite_key)
+    @battler_sprite_refs ||= {}
+    @battler_sprite_refs[burst_group] ||= []
+    @battler_sprite_refs[burst_group] << { :scene => scene, :key => sprite_key }
+  rescue => e
+    log("register_battler_sprite ERROR: #{e.class}: #{e.message}")
+  end
+
+  def self.dim_earlier_battler_sprites(newest_group)
+    return if !@battler_sprite_refs || @battler_sprite_refs.empty?
+    return if !newest_group
+    @battler_sprite_refs.each do |grp, refs|
+      next if grp >= newest_group
+      refs.each do |ref|
+        begin
+          scene = ref[:scene]
+          next if !scene
+          sprites = scene.instance_variable_get(:@sprites) rescue nil
+          next if !sprites
+          sp = sprites[ref[:key]] rescue nil
+          next if !sp || sp.disposed?
+          sp.opacity = MULTI_DIM_OPACITY if sp.opacity > MULTI_DIM_OPACITY
+        rescue
+        end
+      end
+    end
+  rescue => e
+    log("dim_earlier_battler_sprites ERROR: #{e.class}: #{e.message}")
+  end
+
+  def self.restore_battler_sprites
+    return if !@battler_sprite_refs || @battler_sprite_refs.empty?
+    @battler_sprite_refs.each do |_grp, refs|
+      refs.each do |ref|
+        begin
+          scene = ref[:scene]
+          next if !scene
+          sprites = scene.instance_variable_get(:@sprites) rescue nil
+          next if !sprites
+          sp = sprites[ref[:key]] rescue nil
+          next if !sp || sp.disposed?
+          sp.opacity = 255
+        rescue
+        end
+      end
+    end
+    @battler_sprite_refs = {}
+  rescue => e
+    log("restore_battler_sprites ERROR: #{e.class}: #{e.message}")
+  end
+
   # ── Vanilla/Classic battle burst helper ────────────────────────────
   # Fires seal capsule particle bursts on the battle viewport for BOTH
   # player-side and opponent-side Pokémon.  Works for any scene that is
@@ -63,6 +119,10 @@ module BallSealsKIF
         end
         burst_delay = base_delay + (opp_ball_index * MULTI_BALL_STAGGER)
         start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+        # Register the battler sprite for multi-pokémon dimming
+        if opp_is_doubles || opp_is_triples
+          register_battler_sprite(@burst_group_counter - 1, scene, "pokemon_#{idxBattler}")
+        end
         log("DBG: Triggered opponent seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
         opp_ball_index += 1
       else
@@ -106,6 +166,10 @@ module BallSealsKIF
         # sequentially rather than all at once.
         burst_delay = base_delay + (player_ball_index * MULTI_BALL_STAGGER)
         start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+        # Register the battler sprite for multi-pokémon dimming
+        if player_is_doubles || player_is_triples
+          register_battler_sprite(@burst_group_counter - 1, scene, "pokemon_#{idxBattler}")
+        end
         log("DBG: Triggered vanilla seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
         player_ball_index += 1
       end
@@ -323,6 +387,10 @@ module BallSealsKIF
               x, y = BallSealsKIF.opponent_battler_burst_pos(self, @sprites, idxBattler, pkmn)
               burst_delay = base_delay + (ball_index * BallSealsKIF::MULTI_BALL_STAGGER)
               BallSealsKIF.start_capsule_burst_on_viewport(vp, x, y, cap, burst_delay)
+              # Register battler sprite for multi-pokémon dimming
+              if opp_count >= 2
+                BallSealsKIF.register_battler_sprite(BallSealsKIF.instance_variable_get(:@burst_group_counter).to_i - 1, self, "pokemon_#{idxBattler}")
+              end
               BallSealsKIF.log("DBG: Triggered EBDX opponent seal burst for battler #{idxBattler} at (#{x},#{y}) delay=#{burst_delay}")
               ball_index += 1
             end
@@ -488,6 +556,19 @@ module BallSealsKIF
           BallSealsKIF.log("DBG: Replacing vanilla EBBallBurst with capsule burst at (#{x},#{burst_y}) stagger=#{stagger_delay}")
           # Uses the seal icon images for pokeball opening particles
           BallSealsKIF.start_capsule_burst_on_viewport(viewport, x, burst_y, cap, stagger_delay)
+          # Register battler sprite for multi-pokémon dimming (EBDX player-side)
+          if (is_doubles || is_triples) && idx_battler
+            begin
+              scene = $scene rescue nil
+              scene ||= ObjectSpace.each_object(BallSealsKIF.resolve_scene_class).first rescue nil if BallSealsKIF.resolve_scene_class
+              BallSealsKIF.register_battler_sprite(
+                BallSealsKIF.instance_variable_get(:@burst_group_counter).to_i - 1,
+                scene, "pokemon_#{idx_battler}"
+              ) if scene
+            rescue => e2
+              BallSealsKIF.log("EBBallBurst sprite register ERROR: #{e2.class}: #{e2.message}")
+            end
+          end
           return
         end
         @bskif_dummy = false
@@ -550,6 +631,9 @@ module BallSealsKIF
     # Dispose any leftover seal overlay viewport from a previous battle
     # so each battle starts with a clean slate.
     dispose_seal_overlay_viewport
+    # Reset burst group tracking for multi-pokémon dimming
+    @burst_group_counter = 0
+    @battler_sprite_refs = {}
     # Bake seal placements onto player Pokémon so the data is available
     # for serialization in link battles.
     bake_seals_for_battle

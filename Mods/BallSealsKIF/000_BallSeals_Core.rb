@@ -1185,8 +1185,7 @@ module BallSealsKIF
   # honouring per-capsule overrides and falling back to defaults.
   def self.capsule_anim_type(cap, sym)
     group = seal_anim_group(sym)
-    settings = cap[:anim_settings] if cap
-    settings = DEFAULT_ANIM_SETTINGS if !settings || !settings.is_a?(Hash)
+    settings = (cap && cap[:anim_settings].is_a?(Hash)) ? cap[:anim_settings] : DEFAULT_ANIM_SETTINGS
     type = settings[group] || DEFAULT_ANIM_SETTINGS[group] || :static
     ANIM_TYPES.include?(type) ? type : :static
   end
@@ -1976,7 +1975,7 @@ module BallSealsKIF
         # Seals fade in one at a time within the hold window
         total = [fx[:total_seals] || 1, 1].max
         idx   = fx[:seal_index] || 0
-        stagger_interval = [hold_total / total, 1].max
+        stagger_interval = [(hold_total.to_f / total).ceil, 1].max
         seal_start = idx * stagger_interval
         fade_in = 4
         if elapsed < seal_start

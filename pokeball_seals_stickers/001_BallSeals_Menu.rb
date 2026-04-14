@@ -37,7 +37,7 @@ module BallSealsKIF
   # on Object, so plain method_defined? misses them.
   def self.has_any_method?(mod, name)
     mod.method_defined?(name) ||
-      (mod.private_method_defined?(name) rescue false)
+      mod.private_method_defined?(name)
   rescue
     false
   end
@@ -160,7 +160,8 @@ module BallSealsKIF
     has_save   = labels.include?(save_label.to_s.downcase)
     has_outfit = labels.include?(outfit_label.to_s.downcase)
     has_opts   = labels.include?(options_label.to_s.downcase)
-    has_quit   = labels.any? { |l| l == "quit" || l == "exit" || l == "title screen" }
+    quit_labels = ["quit", "exit", "title screen"]
+    has_quit   = labels.any? { |l| quit_labels.include?(l) }
     # Require "Save" plus at least one other standard pause menu label
     has_save && (has_outfit || has_opts || has_quit)
   end

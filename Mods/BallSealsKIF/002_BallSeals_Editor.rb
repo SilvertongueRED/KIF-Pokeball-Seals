@@ -107,7 +107,9 @@ class BallSealsSingleMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
-  CURSOR_STEP = 0.03
+  # Step size chosen so that 0.5 (dead centre) is always reachable from
+  # any grid position (0.5 / 0.03125 == 16, an integer).
+  CURSOR_STEP = 1.0 / 32
   # Max normalised distance from cursor to seal centre for selection
   SELECTION_THRESHOLD = 0.15
   CROSSHAIR_COLOR = Color.new(255, 255, 100)
@@ -226,7 +228,7 @@ class BallSealsSingleMoveScene
         off_y -= CURSOR_STEP
       end
       if Input.repeat?(Input::DOWN)
-        off_y += step
+        off_y += CURSOR_STEP
       end
       if Input.trigger?(Input::USE)
         pl[:x] = [[pl[:x].to_f + off_x, 0.0].max, 1.0].min
@@ -320,6 +322,9 @@ class BallSealsMultiMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
+  # Step size chosen so that 0.5 (dead centre) is always reachable from
+  # any grid position (0.5 / 0.03125 == 16, an integer).
+  CURSOR_STEP = 1.0 / 32
 
   def initialize(slot, capsule)
     @slot = slot
@@ -399,18 +404,17 @@ class BallSealsMultiMoveScene
       Graphics.update
       Input.update
 
-      step = 0.03
       if Input.repeat?(Input::LEFT)
-        cx = [[cx - step, 0.0].max, 1.0].min
+        cx = [[cx - CURSOR_STEP, 0.0].max, 1.0].min
       end
       if Input.repeat?(Input::RIGHT)
-        cx = [[cx + step, 0.0].max, 1.0].min
+        cx = [[cx + CURSOR_STEP, 0.0].max, 1.0].min
       end
       if Input.repeat?(Input::UP)
-        cy = [[cy - step, 0.0].max, 1.0].min
+        cy = [[cy - CURSOR_STEP, 0.0].max, 1.0].min
       end
       if Input.repeat?(Input::DOWN)
-        cy = [[cy + step, 0.0].max, 1.0].min
+        cy = [[cy + CURSOR_STEP, 0.0].max, 1.0].min
       end
 
       if Input.press?(Input::USE)
@@ -463,13 +467,12 @@ class BallSealsMultiMoveScene
       Graphics.update
       Input.update
 
-      step = 0.03
       # Use independent if-checks (not elsif) to allow diagonal movement
       if Input.repeat?(Input::LEFT)
-        off_x -= step
+        off_x -= CURSOR_STEP
       end
       if Input.repeat?(Input::RIGHT)
-        off_x += step
+        off_x += CURSOR_STEP
       end
       if Input.repeat?(Input::UP)
         off_y -= CURSOR_STEP

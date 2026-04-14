@@ -5,9 +5,15 @@
 # different KIF engine versions and mod-manager load orders:
 #
 #   1. MenuHandlers / PauseMenuHandlers  (modern KIF, Essentials v20+)
-#   2. Scene class hook                  (standard Essentials v19)
-#   3. Screen class hook                 (deferred re-installation)
-#   4. Global pbShowCommands hook        (KIF custom pause menu flow)
+#   2. Scene class hook via prepend       (standard Essentials v19)
+#   3. Screen class hook via prepend      (deferred re-installation)
+#   4. Global pbShowCommands hook         (KIF custom pause menu flow)
+#
+# Strategy 4 is the critical one for KIF: the global pbShowCommands
+# function is typically a private method on Object in MKXP's Ruby 2.x,
+# so we must check private_method_defined? in addition to method_defined?.
+# Strategies 2 & 3 use Module#prepend so they survive later-loading
+# scripts that redefine the hooked methods on the same class.
 
 module BallSealsKIF
   def self.ball_seals_label
@@ -24,6 +30,16 @@ module BallSealsKIF
 
   def self.outfit_label
     @outfit_label ||= intl("Outfit")
+  end
+
+  # Check whether a class/module defines a method (public, protected,
+  # OR private).  MKXP Ruby 2.x makes top-level `def` methods private
+  # on Object, so plain method_defined? misses them.
+  def self.has_any_method?(mod, name)
+    mod.method_defined?(name) ||
+      mod.private_method_defined?(name)
+  rescue
+    false
   end
 end
 
@@ -144,7 +160,8 @@ module BallSealsKIF
     has_save   = labels.include?(save_label.to_s.downcase)
     has_outfit = labels.include?(outfit_label.to_s.downcase)
     has_opts   = labels.include?(options_label.to_s.downcase)
-    has_quit   = labels.include?("quit") || labels.include?("exit")
+    quit_labels = ["quit", "exit", "title screen"]
+    has_quit   = labels.any? { |l| quit_labels.include?(l) }
     # Require "Save" plus at least one other standard pause menu label
     has_save && (has_outfit || has_opts || has_quit)
   end
@@ -195,8 +212,26 @@ module BallSealsKIF
   end
 
   # ==================================================================
-  # Strategy 2 — Scene class hook (PokemonPauseMenu_Scene, etc.)
+  # Strategy 2 — Scene class hook via prepend
+  # Uses Module#prepend so the hook survives even when later-loading
+  # KIF scripts redefine pbShowCommands on the same class.
   # ==================================================================
+
+  # The prepend module — defined once, prepended to each scene class.
+  module SceneMenuHook
+    def pbShowCommands(*all_args)
+      begin
+        result = BallSealsKIF.wrap_show_commands(all_args, 0) { |*a|
+          super(*a)
+        }
+        return result unless result.nil?
+      rescue => e
+        BallSealsKIF.log("Scene hook ERROR: #{e.class}: #{e.message}")
+      end
+      super(*all_args)
+    end
+  end
+
   def self.install_scene_hooks
     installed = false
     scene_classes = []
@@ -206,21 +241,9 @@ module BallSealsKIF
     scene_classes << PauseMenuScene         if defined?(PauseMenuScene)
     scene_classes.compact.uniq.each do |klass|
       next if !klass.method_defined?(:pbShowCommands)
-      next if klass.method_defined?(:__bskif_pbShowCommands)
-      klass.class_eval do
-        alias_method :__bskif_pbShowCommands, :pbShowCommands
-        define_method(:pbShowCommands) do |*all_args|
-          begin
-            result = BallSealsKIF.wrap_show_commands(all_args, 0) { |*a|
-              __bskif_pbShowCommands(*a)
-            }
-            return result unless result.nil?
-          rescue => e
-            BallSealsKIF.log("Scene hook ERROR: #{e.class}: #{e.message}")
-          end
-          __bskif_pbShowCommands(*all_args)
-        end
-      end
+      # Guard: only prepend once
+      next if klass.ancestors.include?(SceneMenuHook)
+      klass.send(:prepend, SceneMenuHook)
       BallSealsKIF.log("Pause menu hook installed on #{klass}")
       installed = true
       break
@@ -228,54 +251,27 @@ module BallSealsKIF
     installed
   end
 
-  # Re-install scene hooks when they have been overwritten by later-
-  # loading scripts.  Called via the screen-class hook (Strategy 3)
-  # every time the pause menu opens.
-  def self.refresh_scene_hooks
-    scene_classes = []
-    scene_classes << PokemonPauseMenu_Scene if defined?(PokemonPauseMenu_Scene)
-    scene_classes << PokemonPauseMenuScene  if defined?(PokemonPauseMenuScene)
-    scene_classes.compact.uniq.each do |klass|
-      next if !klass.method_defined?(:pbShowCommands)
-      next if klass.method_defined?(:__bskif_pbShowCommands)
-      klass.class_eval do
-        alias_method :__bskif_pbShowCommands, :pbShowCommands
-        define_method(:pbShowCommands) do |*all_args|
-          begin
-            result = BallSealsKIF.wrap_show_commands(all_args, 0) { |*a|
-              __bskif_pbShowCommands(*a)
-            }
-            return result unless result.nil?
-          rescue => e
-            BallSealsKIF.log("Scene hook ERROR: #{e.class}: #{e.message}")
-          end
-          __bskif_pbShowCommands(*all_args)
-        end
-      end
-      BallSealsKIF.log("Re-installed scene hook on #{klass}")
+  # ==================================================================
+  # Strategy 3 — Screen class hook via prepend
+  # Wraps pbStartPokemonMenu so the global hook (Strategy 4) is
+  # retried on every pause-menu open — handles the case where
+  # pbShowCommands wasn't yet defined at init time.
+  # ==================================================================
+
+  module ScreenMenuHook
+    def pbStartPokemonMenu(*args)
+      BallSealsKIF.ensure_global_hook
+      super(*args)
     end
-  rescue => e
-    log("refresh_scene_hooks ERROR: #{e.class}: #{e.message}")
   end
 
-  # ==================================================================
-  # Strategy 3 — Screen class hook (PokemonPauseMenu, etc.)
-  # Wraps pbStartPokemonMenu so scene hooks are refreshed every time
-  # the player opens the pause menu.  Catches late redefinitions.
-  # ==================================================================
   def self.install_screen_hooks
     screen_classes = []
     screen_classes << PokemonPauseMenu if defined?(PokemonPauseMenu)
     screen_classes.compact.each do |klass|
       next if !klass.method_defined?(:pbStartPokemonMenu)
-      next if klass.method_defined?(:__bskif_pbStartPokemonMenu)
-      klass.class_eval do
-        alias_method :__bskif_pbStartPokemonMenu, :pbStartPokemonMenu
-        define_method(:pbStartPokemonMenu) do |*args|
-          BallSealsKIF.refresh_scene_hooks
-          __bskif_pbStartPokemonMenu(*args)
-        end
-      end
+      next if klass.ancestors.include?(ScreenMenuHook)
+      klass.send(:prepend, ScreenMenuHook)
       BallSealsKIF.log("Screen hook installed on #{klass}")
       return true
     end
@@ -285,17 +281,28 @@ module BallSealsKIF
     false
   end
 
+  # Called from ScreenMenuHook every time the pause menu opens.
+  # Retries Strategy 4 if it wasn't installed at init time.
+  def self.ensure_global_hook
+    install_global_hook unless @global_hook_installed
+  rescue => e
+    log("ensure_global_hook ERROR: #{e.class}: #{e.message}")
+  end
+
   # ==================================================================
   # Strategy 4 — Global pbShowCommands hook (Object-level)
-  # KIF's custom pause menu may call the top-level pbShowCommands
-  # function rather than a scene method.  This hook intercepts those
-  # calls but only injects "Ball Seals" when the command list looks
-  # like a pause menu (contains "Save" + "Outfit"/"Options"/"Quit").
+  # KIF's custom pause menu calls the top-level pbShowCommands
+  # function rather than a scene method.  In MKXP's Ruby 2.x, top-
+  # level `def` methods are PRIVATE on Object, so we must check
+  # private_method_defined? in addition to method_defined?.
+  # This hook intercepts those calls but only injects "Ball Seals"
+  # when the command list looks like a pause menu (contains "Save" +
+  # "Outfit"/"Options"/"Quit").
   # ==================================================================
   def self.install_global_hook
     return false if @global_hook_installed
-    return false unless Object.method_defined?(:pbShowCommands)
-    return false if Object.method_defined?(:__bskif_global_pbShowCommands)
+    return false unless has_any_method?(Object, :pbShowCommands)
+    return false if has_any_method?(Object, :__bskif_global_pbShowCommands)
     Object.class_eval do
       alias_method :__bskif_global_pbShowCommands, :pbShowCommands
       define_method(:pbShowCommands) do |*args|

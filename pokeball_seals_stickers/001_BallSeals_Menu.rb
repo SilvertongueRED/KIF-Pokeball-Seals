@@ -141,9 +141,9 @@ module BallSealsKIF
     strs = commands.select { |c| c.is_a?(String) }
     return false if strs.length < 2
     labels = strs.map { |s| s.downcase }
-    has_save   = labels.include?("save")
-    has_outfit = labels.include?("outfit")
-    has_opts   = labels.include?("options")
+    has_save   = labels.include?(save_label.to_s.downcase)
+    has_outfit = labels.include?(outfit_label.to_s.downcase)
+    has_opts   = labels.include?(options_label.to_s.downcase)
     has_quit   = labels.include?("quit") || labels.include?("exit")
     # Require "Save" plus at least one other standard pause menu label
     has_save && (has_outfit || has_opts || has_quit)
@@ -165,7 +165,7 @@ module BallSealsKIF
       ret = original.call(*args_mod)
       return handle_menu_return(ret, insert_at)
     end
-    nil # signal: nothing to do — let caller fall through
+    nil # signal: nothing to do -- let caller fall through
   end
 
   # ==================================================================
@@ -177,6 +177,8 @@ module BallSealsKIF
       handler = Object.const_get(name)
       next unless handler.respond_to?(:add)
       begin
+        # order 65: sits between Outfit (~60) and Save (~70) in KIF's
+        # default pause menu ordering.
         handler.add(:pause_menu, :ball_seals, {
           "name"      => ball_seals_label,
           "order"     => 65,
@@ -298,8 +300,8 @@ module BallSealsKIF
       alias_method :__bskif_global_pbShowCommands, :pbShowCommands
       define_method(:pbShowCommands) do |*args|
         begin
-          # Find the commands array argument (may be args[0] or args[1]
-          # depending on whether a helptext string precedes it).
+          # Find the commands array argument (may be args[0] or args[1])
+          # depending on whether a helptext string precedes it.
           cmd_arg_idx = nil
           args.each_with_index do |arg, i|
             if arg.is_a?(Array) && BallSealsKIF.pause_menu_commands?(arg)

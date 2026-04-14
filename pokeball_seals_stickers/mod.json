@@ -9,5 +9,12 @@
   "incompatible": [],
   "settings": [],
   "scripts": ["main.rb"],
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "menu": [
+    {
+      "location": "pause",
+      "name": "Ball Seals",
+      "action": "open_ball_seals_menu"
+    }
+  ]
 }

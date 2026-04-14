@@ -360,4 +360,11 @@ module BallSealsKIF
   end
 end
 
+# ── Global callback for KIF mod manager ────────────────────────────
+# KIF's mod manager invokes the method named in mod.json "menu.action"
+# at top level.  Define a global helper that delegates to the module.
+def open_ball_seals_menu
+  BallSealsKIF.open_hub_from_menu
+end
+
 BallSealsKIF.init_menu

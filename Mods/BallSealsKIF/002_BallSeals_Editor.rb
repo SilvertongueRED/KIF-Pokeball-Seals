@@ -563,6 +563,7 @@ class BallSealsCapsuleEditorScene
     "Rename Capsule",
     "Assign to Pokémon",
     "Clear Capsule",
+    "Animations",
     "Preview Burst",
     "Back"
   ]
@@ -630,7 +631,8 @@ class BallSealsCapsuleEditorScene
     when 5
       @capsule[:placements] = []
       save_capsule
-    when 6
+    when 6 then animations_flow
+    when 7
       if !@capsule[:placements] || @capsule[:placements].empty?
         pbMessage(BallSealsKIF.intl("Add at least one seal first."))
       else
@@ -886,6 +888,47 @@ class BallSealsCapsuleEditorScene
     pkmn.ball_capsule_slot = @slot
     pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)
     pbMessage(BallSealsKIF.intl("Assigned {1} to {2}.", @capsule[:name], pkmn.name))
+  end
+
+  def animations_flow
+    loop do
+      settings = @capsule[:anim_settings] || {}
+      commands = BallSealsKIF::ANIM_GROUPS.map do |group|
+        current = settings[group] || BallSealsKIF::DEFAULT_ANIM_SETTINGS[group] || :static
+        label = BallSealsKIF.intl(BallSealsKIF::ANIM_GROUP_NAMES[group] || group.to_s)
+        type_label = BallSealsKIF.intl(BallSealsKIF::ANIM_TYPE_NAMES[current] || current.to_s)
+        "#{label}: #{type_label}"
+      end
+      commands << BallSealsKIF.intl("Back")
+
+      idx = BallSealsCommandScene.new(
+        BallSealsKIF.intl("Animations"),
+        commands,
+        BallSealsKIF.intl("Choose a seal group to change its animation.")
+      ).main
+
+      return if idx.nil? || idx >= BallSealsKIF::ANIM_GROUPS.length
+
+      group = BallSealsKIF::ANIM_GROUPS[idx]
+      type_commands = BallSealsKIF::ANIM_TYPES.map { |t|
+        BallSealsKIF.intl(BallSealsKIF::ANIM_TYPE_NAMES[t] || t.to_s)
+      }
+      current = settings[group] || BallSealsKIF::DEFAULT_ANIM_SETTINGS[group] || :static
+      current_idx = BallSealsKIF::ANIM_TYPES.index(current) || 0
+
+      type_idx = BallSealsCommandScene.new(
+        BallSealsKIF.intl("Animation Type"),
+        type_commands,
+        BallSealsKIF.intl("Choose animation for {1}.",
+          BallSealsKIF.intl(BallSealsKIF::ANIM_GROUP_NAMES[group] || group.to_s)),
+        current_idx
+      ).main
+
+      next if type_idx.nil?
+      @capsule[:anim_settings] ||= {}
+      @capsule[:anim_settings][group] = BallSealsKIF::ANIM_TYPES[type_idx]
+      save_capsule
+    end
   end
 
   def save_capsule

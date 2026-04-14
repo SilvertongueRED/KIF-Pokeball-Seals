@@ -12,6 +12,9 @@ class BallSealsCapsuleSelectScene
 end
 
 class BallSealsPlaceScene
+  # Step size reduced by 4% (from 0.05) for finer cursor positioning.
+  CURSOR_STEP = 0.048
+
   def initialize(slot, seal_sym, start_x = nil, start_y = nil)
     @slot = slot
     @seal_sym = seal_sym
@@ -73,13 +76,13 @@ class BallSealsPlaceScene
       Graphics.update
       Input.update
       if Input.repeat?(Input::LEFT)
-        @x = [[@x - 0.05, 0.0].max, 1.0].min
+        @x = [[@x - CURSOR_STEP, 0.0].max, 1.0].min
       elsif Input.repeat?(Input::RIGHT)
-        @x = [[@x + 0.05, 0.0].max, 1.0].min
+        @x = [[@x + CURSOR_STEP, 0.0].max, 1.0].min
       elsif Input.repeat?(Input::UP)
-        @y = [[@y - 0.05, 0.0].max, 1.0].min
+        @y = [[@y - CURSOR_STEP, 0.0].max, 1.0].min
       elsif Input.repeat?(Input::DOWN)
-        @y = [[@y + 0.05, 0.0].max, 1.0].min
+        @y = [[@y + CURSOR_STEP, 0.0].max, 1.0].min
       elsif Input.trigger?(Input::USE)
         finish = { :seal => @seal_sym, :x => @x, :y => @y }
         dispose
@@ -107,9 +110,9 @@ class BallSealsSingleMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
-  # Step size chosen so that 0.5 (dead centre) is always reachable from
-  # any grid position (0.5 / 0.03125 == 16, an integer).
-  CURSOR_STEP = 1.0 / 32
+  # Step size reduced by 4% (from 1.0/32) for finer cursor positioning.
+  # Trade-off: 0.5 (dead centre) may not land exactly on a grid step.
+  CURSOR_STEP = 0.96 / 32
   # Max normalised distance from cursor to seal centre for selection
   SELECTION_THRESHOLD = 0.15
   CROSSHAIR_COLOR = Color.new(255, 255, 100)
@@ -322,9 +325,9 @@ class BallSealsMultiMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
-  # Step size chosen so that 0.5 (dead centre) is always reachable from
-  # any grid position (0.5 / 0.03125 == 16, an integer).
-  CURSOR_STEP = 1.0 / 32
+  # Step size reduced by 4% (from 1.0/32) for finer cursor positioning.
+  # Trade-off: 0.5 (dead centre) may not land exactly on a grid step.
+  CURSOR_STEP = 0.96 / 32
 
   def initialize(slot, capsule)
     @slot = slot

@@ -12,8 +12,8 @@ class BallSealsCapsuleSelectScene
 end
 
 class BallSealsPlaceScene
-  # Step size reduced by 4% (from 0.05) for finer cursor positioning.
-  CURSOR_STEP = 0.048
+  # Step size reduced by 13% (from 0.05) for finer cursor positioning.
+  CURSOR_STEP = 0.0435
 
   def initialize(slot, seal_sym, start_x = nil, start_y = nil)
     @slot = slot
@@ -110,9 +110,9 @@ class BallSealsSingleMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
-  # Step size reduced by 4% (from 1.0/32) for finer cursor positioning.
+  # Step size reduced by 13% (from 1.0/32) for finer cursor positioning.
   # Trade-off: 0.5 (dead centre) may not land exactly on a grid step.
-  CURSOR_STEP = 0.96 / 32
+  CURSOR_STEP = 0.87 / 32
   # Max normalised distance from cursor to seal centre for selection
   SELECTION_THRESHOLD = 0.15
   CROSSHAIR_COLOR = Color.new(255, 255, 100)
@@ -325,9 +325,9 @@ class BallSealsMultiMoveScene
   CANVAS_Y = 72
   CANVAS_W = 240
   CANVAS_H = 176
-  # Step size reduced by 4% (from 1.0/32) for finer cursor positioning.
+  # Step size reduced by 13% (from 1.0/32) for finer cursor positioning.
   # Trade-off: 0.5 (dead centre) may not land exactly on a grid step.
-  CURSOR_STEP = 0.96 / 32
+  CURSOR_STEP = 0.87 / 32
 
   def initialize(slot, capsule)
     @slot = slot

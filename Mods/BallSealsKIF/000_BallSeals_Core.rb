@@ -1287,12 +1287,13 @@ module BallSealsKIF
     sym = resolve_seal_sym(sym)
     return :letter if letter_seal?(sym)
     s = sym.to_s
-    # Check longest prefixes first (e.g. "FIGHTING_SEAL_" before "FIRE_")
-    # by iterating the map sorted by prefix length descending.
-    SEAL_PREFIX_TO_GROUP.each do |prefix, group|
-      return group if s.start_with?(prefix)
+    # Longer prefixes are checked first to avoid false matches (e.g.
+    # "FIGHTING_SEAL_" must match before "FIRE_").  Ruby hashes
+    # preserve insertion order so we sort by descending prefix length.
+    SEAL_PREFIX_TO_GROUP.keys.sort_by { |k| -k.length }.each do |prefix|
+      return SEAL_PREFIX_TO_GROUP[prefix] if s.start_with?(prefix)
     end
-    :letter  # fallback — dynamic/unknown seals treated as letter
+    :letter  # fallback — dynamic/unknown seals use the letter group
   end
 
   # Returns the animation type for a seal within a given capsule,

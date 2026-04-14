@@ -260,7 +260,8 @@ class BallSealsSingleMoveScene
 
   def draw_crosshair(cx, cy)
     bmp = @sprites["overlay"].bitmap
-    px = (cx * CANVAS_W).to_i
+    x_off = (CANVAS_W * BallSealsKIF::GRID_X_OFFSET).to_i
+    px = (cx * CANVAS_W).to_i + x_off
     py = (cy * CANVAS_H).to_i
     c = CROSSHAIR_COLOR
     hx = [px - 5, 0].max
@@ -275,7 +276,8 @@ class BallSealsSingleMoveScene
     pl = @capsule[:placements][seal_index]
     return if !pl
     bmp = @sprites["overlay"].bitmap
-    px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
+    x_off = (CANVAS_W * BallSealsKIF::GRID_X_OFFSET).to_i
+    px = 16 + x_off + (pl[:x].to_f * (CANVAS_W - 32)).to_i
     py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
     size = BallSealsKIF::CANVAS_ICON_SIZE + 4
     bmp.fill_rect(px - size / 2, py - size / 2, size, size, HIGHLIGHT_COLOR)
@@ -296,7 +298,8 @@ class BallSealsSingleMoveScene
     # Highlight the moving seal
     if pl
       bmp = @sprites["canvas"].bitmap
-      px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
+      x_off = (CANVAS_W * BallSealsKIF::GRID_X_OFFSET).to_i
+      px = 16 + x_off + (pl[:x].to_f * (CANVAS_W - 32)).to_i
       py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
       size = BallSealsKIF::CANVAS_ICON_SIZE + 4
       bmp.fill_rect(px - size / 2, py - size / 2, size, size, HIGHLIGHT_COLOR)
@@ -382,7 +385,8 @@ class BallSealsMultiMoveScene
         draw_selection_box(sel_x1, sel_y1, cx, cy)
       end
       # Draw cursor crosshair
-      px = (cx * CANVAS_W).to_i
+      x_off = (CANVAS_W * BallSealsKIF::GRID_X_OFFSET).to_i
+      px = (cx * CANVAS_W).to_i + x_off
       py = (cy * CANVAS_H).to_i
       c = Color.new(255, 255, 100)
       hx = [px - 5, 0].max
@@ -505,9 +509,10 @@ class BallSealsMultiMoveScene
 
   def draw_selection_box(x1, y1, x2, y2)
     bmp = @sprites["overlay"].bitmap
-    px1 = (([x1, x2].min) * CANVAS_W).to_i
+    x_off = (CANVAS_W * BallSealsKIF::GRID_X_OFFSET).to_i
+    px1 = (([x1, x2].min) * CANVAS_W).to_i + x_off
     py1 = (([y1, y2].min) * CANVAS_H).to_i
-    px2 = (([x1, x2].max) * CANVAS_W).to_i
+    px2 = (([x1, x2].max) * CANVAS_W).to_i + x_off
     py2 = (([y1, y2].max) * CANVAS_H).to_i
     w = px2 - px1
     h = py2 - py1
@@ -537,10 +542,11 @@ class BallSealsMultiMoveScene
     BallSealsKIF.refresh_capsule_canvas(@sprites["canvas"].bitmap, temp_cap)
     # Highlight selected seals
     bmp = @sprites["canvas"].bitmap
+    x_off = (CANVAS_W * BallSealsKIF::GRID_X_OFFSET).to_i
     selected_indices.each do |i|
       next if i >= temp_cap[:placements].length
       pl = temp_cap[:placements][i]
-      px = 16 + (pl[:x].to_f * (CANVAS_W - 32)).to_i
+      px = 16 + x_off + (pl[:x].to_f * (CANVAS_W - 32)).to_i
       py = 12 + (pl[:y].to_f * (CANVAS_H - 24)).to_i
       highlight = Color.new(100, 200, 255, 100)
       size = BallSealsKIF::CANVAS_ICON_SIZE + 4
@@ -893,11 +899,14 @@ class BallSealsCapsuleEditorScene
   def animations_flow
     loop do
       settings = @capsule[:anim_settings] || {}
-      commands = BallSealsKIF::ANIM_GROUPS.map do |group|
+      sorted_groups = BallSealsKIF.sorted_anim_groups(BallSealsKIF::ANIM_GROUPS)
+      # Sort toggle as the first entry
+      commands = [BallSealsKIF.anim_sort_mode_label]
+      sorted_groups.each do |group|
         current = settings[group] || BallSealsKIF::DEFAULT_ANIM_SETTINGS[group] || :static
         label = BallSealsKIF.intl(BallSealsKIF::ANIM_GROUP_NAMES[group] || group.to_s)
         type_label = BallSealsKIF.intl(BallSealsKIF::ANIM_TYPE_NAMES[current] || current.to_s)
-        "#{label}: #{type_label}"
+        commands << "#{label}: #{type_label}"
       end
       commands << BallSealsKIF.intl("Back")
 
@@ -907,9 +916,15 @@ class BallSealsCapsuleEditorScene
         BallSealsKIF.intl("Choose a seal group to change its animation.")
       ).main
 
-      return if idx.nil? || idx >= BallSealsKIF::ANIM_GROUPS.length
+      return if idx.nil? || idx >= commands.length - 1
 
-      group = BallSealsKIF::ANIM_GROUPS[idx]
+      # Sort toggle
+      if idx == 0
+        BallSealsKIF.toggle_anim_sort_mode
+        next
+      end
+
+      group = sorted_groups[idx - 1]
       type_commands = BallSealsKIF::ANIM_TYPES.map { |t|
         BallSealsKIF.intl(BallSealsKIF::ANIM_TYPE_NAMES[t] || t.to_s)
       }
@@ -927,6 +942,7 @@ class BallSealsCapsuleEditorScene
       next if type_idx.nil?
       @capsule[:anim_settings] ||= {}
       @capsule[:anim_settings][group] = BallSealsKIF::ANIM_TYPES[type_idx]
+      BallSealsKIF.record_anim_group_change(group)
       save_capsule
     end
   end

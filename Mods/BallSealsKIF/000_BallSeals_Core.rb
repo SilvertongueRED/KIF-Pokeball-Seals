@@ -28,6 +28,9 @@ module BallSealsKIF
   MAX_SEALS_PER_CAPSULE = 10
   FX_SCALE = 3.0
   CANVAS_ICON_SIZE = 20
+  # Rightward offset (as a fraction of canvas width) applied to the
+  # placement grid so that x=0.5 lands on the pokeball's visual centre.
+  GRID_X_OFFSET = 0.025
 
   # ── Seal list sorting ────────────────────────────────────────────
   # Persists for the session (across menu openings) but resets on
@@ -35,6 +38,13 @@ module BallSealsKIF
   @seal_sort_mode = :alpha
   def self.seal_sort_mode; @seal_sort_mode; end
   def self.seal_sort_mode=(v); @seal_sort_mode = v; end
+
+  # ── Animation group sorting ────────────────────────────────────
+  # Same session-persistent sort for the Animations menu.
+  # :alpha = alphabetical by group name, :recent = recently changed first.
+  @anim_sort_mode = :alpha
+  def self.anim_sort_mode; @anim_sort_mode; end
+  def self.anim_sort_mode=(v); @anim_sort_mode = v; end
 
   # ── Animation types ──────────────────────────────────────────────
   # Available animation styles for seal burst effects.  Each capsule
@@ -1213,6 +1223,53 @@ module BallSealsKIF
     @seal_sort_mode = (@seal_sort_mode == :alpha) ? :recent : :alpha
   end
 
+  # ── Animation group sort helpers ───────────────────────────────
+  # Track which animation groups were recently changed so the
+  # animations menu can sort by "recently changed".
+
+  def self.anim_group_change_order
+    data = ensure_global_data
+    return [] if !data
+    data[:anim_group_change_order] ||= []
+    data[:anim_group_change_order]
+  end
+
+  def self.record_anim_group_change(group)
+    data = ensure_global_data
+    return if !data
+    data[:anim_group_change_order] ||= []
+    data[:anim_group_change_order].delete(group)
+    data[:anim_group_change_order] << group
+  end
+
+  # Sort ANIM_GROUPS according to the current anim_sort_mode.
+  # :alpha  — alphabetical by display name (default)
+  # :recent — most recently changed groups first; unchanged at end
+  def self.sorted_anim_groups(groups)
+    return groups if !groups || groups.empty?
+    case @anim_sort_mode
+    when :recent
+      order = anim_group_change_order
+      groups.sort_by do |g|
+        idx = order.index(g)
+        idx ? -(idx + 1) : 0
+      end
+    else # :alpha
+      groups.sort_by { |g| intl(ANIM_GROUP_NAMES[g] || g.to_s).downcase }
+    end
+  end
+
+  def self.anim_sort_mode_label
+    case @anim_sort_mode
+    when :recent then intl("Sort: Recent")
+    else              intl("Sort: A-Z")
+    end
+  end
+
+  def self.toggle_anim_sort_mode
+    @anim_sort_mode = (@anim_sort_mode == :alpha) ? :recent : :alpha
+  end
+
   # Groups an array of seal defs by their category prefix.
   # E.g. "Heart Seal Red" groups under "Heart Seal", "A Seal Red" under "A Seal".
   # Returns an array of [group_name, [seal_defs...]] pairs preserving order.
@@ -1729,32 +1786,35 @@ module BallSealsKIF
     bitmap.clear
     bg = Color.new(18, 22, 30)
     bitmap.fill_rect(0, 0, bitmap.width, bitmap.height, bg)
+    # Pixel offset applied to all grid X positions so x=0.5 lands on
+    # the pokeball's visual centre.
+    x_off = (bitmap.width * GRID_X_OFFSET).to_i
     # Try the GUI capsule shape image as an overlay; fall back to
     # the procedurally drawn ellipse.
     capsule_bmp = gui_bitmap(:capsule_shape)
     if capsule_bmp
-      dest = Rect.new(16, 12, bitmap.width - 32, bitmap.height - 24)
+      dest = Rect.new(16 + x_off, 12, bitmap.width - 32, bitmap.height - 24)
       src  = Rect.new(0, 0, capsule_bmp.width, capsule_bmp.height)
       bitmap.stretch_blt(dest, capsule_bmp, src)
     else
       fill   = Color.new(70, 80, 98)
       border = Color.new(210, 220, 235)
-      draw_capsule_shape(bitmap, 16, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
+      draw_capsule_shape(bitmap, 16 + x_off, 12, bitmap.width - 32, bitmap.height - 24, fill, border)
     end
-    bitmap.fill_rect(20, bitmap.height/2 - 1, bitmap.width - 40, 2, Color.new(120,140,160,120))
-    # Vertical center line: offset 1.0% right of true center (was 1.5%, shifted left 0.5%)
-    vert_x = (bitmap.width / 2.0 + bitmap.width * 0.010).to_i - 1
+    bitmap.fill_rect(20 + x_off, bitmap.height/2 - 1, bitmap.width - 40, 2, Color.new(120,140,160,120))
+    # Vertical center line at grid centre (left_pad + range/2)
+    vert_x = 16 + x_off + (bitmap.width - 32) / 2
     bitmap.fill_rect(vert_x, 18, 2, bitmap.height - 36, Color.new(120,140,160,100))
     cap = cap || { :placements => [] }
     cap[:placements].each do |pl|
       bx = bitmap_for(pl[:seal])
       next if !bx
-      px = 16 + (pl[:x].to_f * (bitmap.width - 32)).to_i
+      px = 16 + x_off + (pl[:x].to_f * (bitmap.width - 32)).to_i
       py = 12 + (pl[:y].to_f * (bitmap.height - 24)).to_i
       draw_icon(bitmap, bx, px, py, CANVAS_ICON_SIZE)
     end
     if !cursor_x.nil? && !cursor_y.nil?
-      px = 16 + (cursor_x.to_f * (bitmap.width - 32)).to_i
+      px = 16 + x_off + (cursor_x.to_f * (bitmap.width - 32)).to_i
       py = 12 + (cursor_y.to_f * (bitmap.height - 24)).to_i
       # Draw a semi-transparent shadow of the seal being placed at the cursor
       if cursor_seal
@@ -1783,15 +1843,15 @@ module BallSealsKIF
   # Burst delay (in frames) added when Ghost Classic+ UI is detected.
   # Ghost's vanilla scene opens the pokéball slightly later than EBDX,
   # so the seal burst needs a matching stagger to stay in sync.
-  # 50 frames = 2.5 seconds at 20fps for better timing alignment
+  # 80 frames = 4 seconds at 20fps for better timing alignment
   # with Ghost's ball-open animation.
-  GHOST_BURST_DELAY = 50
+  GHOST_BURST_DELAY = 80
 
   # Burst delay (in frames) used when Ghost Classic+ is NOT present and
   # EBDX visuals are off (normal/vanilla battle UI).  Delays the seal
-  # animation by 2.5 seconds (50 frames at 20fps) so it syncs with when
+  # animation by 4 seconds (80 frames at 20fps) so it syncs with when
   # the pokéball actually opens on screen.
-  VANILLA_BURST_DELAY = 50
+  VANILLA_BURST_DELAY = 80
 
   # Percentage of screen height to raise (subtract from Y) player-side
   # seal burst animations when Ghost Classic+ UI is detected.  Ghost's
@@ -1848,9 +1908,9 @@ module BallSealsKIF
   # open at once (e.g. doubles/triples).  The first pokeball's seals
   # play immediately; each subsequent pokeball is delayed by this
   # many additional frames so they animate sequentially.
-  # 30 frames = 1.5 seconds at 20fps — gives each seal animation
+  # 60 frames = 3 seconds at 20fps — gives each seal animation
   # enough time to play uninterrupted before the next pokeball opens.
-  MULTI_BALL_STAGGER = 30
+  MULTI_BALL_STAGGER = 60
 
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.
@@ -1922,12 +1982,12 @@ module BallSealsKIF
       particles = [[sp, vx, vy, 0, rot, vr]]
       # All seals start simultaneously — optional burst_delay staggers them
       # when Ghost Classic+ shifts the ball-open timing later.
-      # :hold keeps seals at full opacity for ~2 seconds (40 frames at 20fps)
+      # :hold keeps seals at full opacity for ~3.5 seconds (70 frames at 20fps)
       # before the fade-out begins.
       started = burst_delay <= 0
       anim_type = capsule_anim_type(cap, sym)
       @active_fx << { :vp => overlay, :frames => 36, :delay => burst_delay,
-                      :hold => 40, :hold_total => 40, :started => started,
+                      :hold => 70, :hold_total => 70, :started => started,
                       :particles => particles, :anim_type => anim_type,
                       :seal_index => seal_idx, :total_seals => sorted.length,
                       :base_x => sp.x, :base_y => sp.y,
@@ -1998,7 +2058,7 @@ module BallSealsKIF
           end
         end
       end
-      # Hold phase — keep seals at full opacity for :hold frames (~2 s)
+      # Hold phase — keep seals at full opacity for :hold frames (~3.5 s)
       # before beginning the fade-out, applying per-type animations.
       if fx[:hold] && fx[:hold] > 0
         fx[:hold] -= 1
@@ -2065,7 +2125,7 @@ module BallSealsKIF
     anim_type = fx[:anim_type] || :static
     return if anim_type == :static
 
-    hold_total = fx[:hold_total] || 40
+    hold_total = fx[:hold_total] || 70
     elapsed = hold_total - (fx[:hold] || 0)
 
     fx[:particles].each do |p|
@@ -2289,8 +2349,8 @@ module BallSealsKIF
       owns_viewport = true
     end
     start_capsule_burst_on_viewport(vp, Graphics.width / 2, Graphics.height / 2, cap)
-    # hold (40) + fade (36) + small buffer (4) = total preview frames
-    preview_frames = 40 + 36 + 4
+    # hold (70) + fade (36) + small buffer (4) = total preview frames
+    preview_frames = 70 + 36 + 4
     preview_frames.times do
       Graphics.update
       begin

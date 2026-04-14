@@ -30,7 +30,7 @@ module BallSealsKIF
   CANVAS_ICON_SIZE = 20
   # Rightward offset (as a fraction of canvas width) applied to the
   # placement grid so that x=0.5 lands on the pokeball's visual centre.
-  GRID_X_OFFSET = 0.005
+  GRID_X_OFFSET = 0.035
 
   # ── Seal list sorting ────────────────────────────────────────────
   # Persists for the session (across menu openings) but resets on

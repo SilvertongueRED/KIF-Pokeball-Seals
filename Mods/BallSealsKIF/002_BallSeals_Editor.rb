@@ -559,11 +559,11 @@ class BallSealsCapsuleEditorScene
   COMMANDS = [
     "Add Seal",
     "Move Seals",
+    "Animations",
     "Remove Seal",
     "Rename Capsule",
     "Assign to Pokémon",
     "Clear Capsule",
-    "Animations",
     "Preview Burst",
     "Back"
   ]
@@ -625,13 +625,13 @@ class BallSealsCapsuleEditorScene
     when 0
       add_seal_flow
     when 1 then move_seal_flow
-    when 2 then remove_seal_flow
-    when 3 then rename_flow
-    when 4 then assign_flow
-    when 5
+    when 2 then animations_flow
+    when 3 then remove_seal_flow
+    when 4 then rename_flow
+    when 5 then assign_flow
+    when 6
       @capsule[:placements] = []
       save_capsule
-    when 6 then animations_flow
     when 7
       if !@capsule[:placements] || @capsule[:placements].empty?
         pbMessage(BallSealsKIF.intl("Add at least one seal first."))

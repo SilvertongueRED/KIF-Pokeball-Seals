@@ -25,7 +25,7 @@ module BallSealsKIF
   MOD_VERSION = "0.8.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
-  MAX_SEALS_PER_CAPSULE = 8
+  MAX_SEALS_PER_CAPSULE = 10
   FX_SCALE = 3.0
   CANVAS_ICON_SIZE = 20
 
@@ -40,30 +40,108 @@ module BallSealsKIF
   # Available animation styles for seal burst effects.  Each capsule
   # stores per-group overrides in :anim_settings; missing keys fall
   # back to DEFAULT_ANIM_SETTINGS.
-  ANIM_TYPES = [:static, :sparkle, :throb, :rolling, :wiggle, :staggered]
+  ANIM_TYPES = [:static, :sparkle, :throb, :rolling, :wiggle, :staggered,
+                :big_loud, :explode, :slam, :swirl, :puff]
   ANIM_TYPE_NAMES = {
     :static    => "Static",
     :sparkle   => "Sparkle",
     :throb     => "Throb",
     :rolling   => "Rolling",
     :wiggle    => "Wiggle",
-    :staggered => "Staggered"
+    :staggered => "Staggered",
+    :big_loud  => "Big/Loud",
+    :explode   => "Explode",
+    :slam      => "Slam",
+    :swirl     => "Swirl",
+    :puff      => "Puff"
   }
 
   # Seal groups for animation assignment.  Each capsule can have a
-  # different animation type per group.
-  ANIM_GROUPS = [:heart, :sparkle, :letter, :other]
+  # different animation type per seal type group.  Every shape and
+  # Pokémon-type family is its own group so users can mix-and-match
+  # animations freely.
+  ANIM_GROUPS = [
+    # Shape seal groups
+    :heart, :star, :smoke, :song, :fire, :sparkle_seal, :flower,
+    :electric, :bubble, :skull, :bat, :tombstone, :coffin,
+    # Pokémon type seal groups
+    :normal, :fighting, :flying, :poison, :ground, :rock,
+    :bug, :ghost_seal, :steel, :water, :grass, :psychic,
+    :ice, :dragon, :dark, :fairy,
+    # Letter / punctuation seals
+    :letter
+  ]
   ANIM_GROUP_NAMES = {
-    :heart   => "Heart Seals",
-    :sparkle => "Sparkle Seals",
-    :letter  => "Letter Seals",
-    :other   => "Other Seals"
+    :heart        => "Heart Seals",
+    :star         => "Star Seals",
+    :smoke        => "Smoke Seals",
+    :song         => "Song Seals",
+    :fire         => "Fire Seals",
+    :sparkle_seal => "Sparkle Seals",
+    :flower       => "Flower Seals",
+    :electric     => "Electric Seals",
+    :bubble       => "Bubble Seals",
+    :skull        => "Skull Seals",
+    :bat          => "Bat Seals",
+    :tombstone    => "Tombstone Seals",
+    :coffin       => "Coffin Seals",
+    :normal       => "Normal Type Seals",
+    :fighting     => "Fighting Type Seals",
+    :flying       => "Flying Type Seals",
+    :poison       => "Poison Type Seals",
+    :ground       => "Ground Type Seals",
+    :rock         => "Rock Type Seals",
+    :bug          => "Bug Type Seals",
+    :ghost_seal   => "Ghost Type Seals",
+    :steel        => "Steel Type Seals",
+    :water        => "Water Type Seals",
+    :grass        => "Grass Type Seals",
+    :psychic      => "Psychic Type Seals",
+    :ice          => "Ice Type Seals",
+    :dragon       => "Dragon Type Seals",
+    :dark         => "Dark Type Seals",
+    :fairy        => "Fairy Type Seals",
+    :letter       => "Letter Seals"
   }
   DEFAULT_ANIM_SETTINGS = {
-    :heart   => :throb,
-    :sparkle => :sparkle,
-    :letter  => :static,
-    :other   => :static
+    :heart        => :throb,
+    :star         => :static,
+    :smoke        => :static,
+    :song         => :static,
+    :fire         => :static,
+    :sparkle_seal => :sparkle,
+    :flower       => :static,
+    :electric     => :static,
+    :bubble       => :static,
+    :skull        => :static,
+    :bat          => :static,
+    :tombstone    => :static,
+    :coffin       => :static,
+    :normal       => :static,
+    :fighting     => :static,
+    :flying       => :static,
+    :poison       => :static,
+    :ground       => :static,
+    :rock         => :static,
+    :bug          => :static,
+    :ghost_seal   => :static,
+    :steel        => :static,
+    :water        => :static,
+    :grass        => :static,
+    :psychic      => :static,
+    :ice          => :static,
+    :dragon       => :static,
+    :dark         => :static,
+    :fairy        => :static,
+    :letter       => :static
+  }
+
+  # Maps old animation group keys to their new equivalents so that
+  # existing save data that used the old :sparkle or :other keys is
+  # resolved correctly after the groups were expanded.
+  LEGACY_ANIM_GROUP_MAP = {
+    :sparkle => :sparkle_seal,
+    :other   => nil   # handled as fallback in capsule_anim_type
   }
 
   # ── Multi-pokémon dimming ────────────────────────────────────────
@@ -1170,23 +1248,73 @@ module BallSealsKIF
     letter_style_seal_name?(name)
   end
 
-  # Returns the animation group (:heart, :sparkle, :letter, :other)
-  # for a given seal symbol.
+  # Returns the animation group for a given seal symbol.  Each shape
+  # family and Pokémon type family has its own group so users can
+  # assign a different animation per seal type per capsule.
+  SEAL_PREFIX_TO_GROUP = {
+    "HEART_"          => :heart,
+    "STAR_"           => :star,
+    "SMOKE_"          => :smoke,
+    "SONG_"           => :song,
+    "FIRE_"           => :fire,
+    "SPARKLE_"        => :sparkle_seal,
+    "FLOWER_"         => :flower,
+    "ELECTRIC_"       => :electric,
+    "BUBBLE_"         => :bubble,
+    "SKULL_"          => :skull,
+    "BAT_"            => :bat,
+    "TOMBSTONE_"      => :tombstone,
+    "COFFIN_"         => :coffin,
+    "NORMAL_SEAL_"    => :normal,
+    "FIGHTING_SEAL_"  => :fighting,
+    "FLYING_SEAL_"    => :flying,
+    "POISON_SEAL_"    => :poison,
+    "GROUND_SEAL_"    => :ground,
+    "ROCK_SEAL_"      => :rock,
+    "BUG_SEAL_"       => :bug,
+    "GHOST_SEAL_"     => :ghost_seal,
+    "STEEL_SEAL_"     => :steel,
+    "WATER_SEAL_"     => :water,
+    "GRASS_SEAL_"     => :grass,
+    "PSYCHIC_SEAL_"   => :psychic,
+    "ICE_SEAL_"       => :ice,
+    "DRAGON_SEAL_"    => :dragon,
+    "DARK_SEAL_"      => :dark,
+    "FAIRY_SEAL_"     => :fairy
+  }
+
   def self.seal_anim_group(sym)
     sym = resolve_seal_sym(sym)
+    return :letter if letter_seal?(sym)
     s = sym.to_s
-    return :heart   if s.start_with?("HEART_")
-    return :sparkle if s.start_with?("SPARKLE_")
-    return :letter  if letter_seal?(sym)
-    :other
+    # Check longest prefixes first (e.g. "FIGHTING_SEAL_" before "FIRE_")
+    # by iterating the map sorted by prefix length descending.
+    SEAL_PREFIX_TO_GROUP.each do |prefix, group|
+      return group if s.start_with?(prefix)
+    end
+    :letter  # fallback — dynamic/unknown seals treated as letter
   end
 
   # Returns the animation type for a seal within a given capsule,
   # honouring per-capsule overrides and falling back to defaults.
+  # Supports backward compatibility with old :sparkle and :other group
+  # keys from saves created before the per-type group expansion.
   def self.capsule_anim_type(cap, sym)
     group = seal_anim_group(sym)
-    settings = (cap && cap[:anim_settings].is_a?(Hash)) ? cap[:anim_settings] : DEFAULT_ANIM_SETTINGS
-    type = settings[group] || DEFAULT_ANIM_SETTINGS[group] || :static
+    settings = (cap && cap[:anim_settings].is_a?(Hash)) ? cap[:anim_settings] : {}
+    # 1) Direct match for the current group key
+    type = settings[group]
+    # 2) Legacy :sparkle key → :sparkle_seal
+    if type.nil? && group == :sparkle_seal && settings.key?(:sparkle)
+      type = settings[:sparkle]
+    end
+    # 3) Legacy :other fallback for groups that were previously lumped
+    #    under :other (everything except :heart, :sparkle_seal, :letter)
+    if type.nil? && group != :heart && group != :sparkle_seal && group != :letter
+      type = settings[:other] if settings.key?(:other)
+    end
+    # 4) Module default
+    type = DEFAULT_ANIM_SETTINGS[group] || :static if type.nil?
     ANIM_TYPES.include?(type) ? type : :static
   end
 
@@ -1804,8 +1932,9 @@ module BallSealsKIF
                       :base_x => sp.x, :base_y => sp.y,
                       :burst_group => @burst_group_counter }
       # Make visible immediately only when there is no burst delay
-      # (staggered animation keeps seals invisible until their slot)
-      if started && anim_type != :staggered
+      # (animations that manage their own opacity start invisible)
+      manages_own_opacity = [:staggered, :explode, :slam, :big_loud].include?(anim_type)
+      if started && !manages_own_opacity
         particles.each { |p| p[0].opacity = 255 if p[0] && !p[0].disposed? }
       end
     end
@@ -1860,7 +1989,8 @@ module BallSealsKIF
       if fx[:started] == false
         fx[:started] = true
         anim_type = fx[:anim_type] || :static
-        if anim_type != :staggered
+        manages_own_opacity = [:staggered, :explode, :slam, :big_loud].include?(anim_type)
+        if !manages_own_opacity
           fx[:particles].each do |p|
             sp = p[0]
             sp.opacity = 255 if sp && !sp.disposed?
@@ -1985,6 +2115,121 @@ module BallSealsKIF
         else
           sp.opacity = 255
         end
+
+      when :big_loud
+        # iPhone Loud-style: seals appear huge, shrink to large, then
+        # pulse/shake vigorously to convey impact.
+        if elapsed < 6
+          # Rapid scale-down from very large to slightly above normal
+          t = elapsed / 6.0
+          scale = FX_SCALE * (2.5 - 1.1 * t)
+          sp.zoom_x = scale
+          sp.zoom_y = scale
+          sp.opacity = [255, (t * 255).to_i + 80].min
+        else
+          # Settled: vigorous shake + pulse at enlarged size
+          shake_x = (Math.sin(elapsed * 2.0) * 4).to_i
+          shake_y = (Math.cos(elapsed * 2.5) * 3).to_i
+          sp.x = (fx[:base_x] || sp.x) + shake_x
+          sp.y = (fx[:base_y] || sp.y) + shake_y
+          pulse = Math.sin(elapsed * 0.6) * 0.35
+          sp.zoom_x = FX_SCALE * 1.35 + pulse
+          sp.zoom_y = FX_SCALE * 1.35 + pulse
+          sp.opacity = 255
+        end
+
+      when :explode
+        # iPhone Fireworks-style: seals start tiny at their position,
+        # burst outward with spin, then settle at normal size.
+        burst_dur = 10
+        if elapsed < burst_dur
+          # Expand from tiny with rotation
+          t = elapsed.to_f / burst_dur
+          ease = 1.0 - (1.0 - t) ** 3  # ease-out cubic
+          sp.zoom_x = FX_SCALE * (0.15 + 0.85 * ease)
+          sp.zoom_y = FX_SCALE * (0.15 + 0.85 * ease)
+          sp.angle  = (1.0 - ease) * 540
+          sp.opacity = [(ease * 300).to_i, 255].min
+        else
+          # Settled: slight sparkle pulse after explosion
+          shimmer = Math.sin((elapsed - burst_dur) * 0.9) * 0.15
+          sp.zoom_x = FX_SCALE + shimmer
+          sp.zoom_y = FX_SCALE + shimmer
+          sp.angle  = 0
+          sp.opacity = 255
+        end
+
+      when :slam
+        # iPhone Slam-style: seals drop from above with a heavy impact
+        # and a brief squash-bounce on landing.
+        drop_dur = 8
+        bounce_dur = 6
+        base_y = fx[:base_y] || sp.y
+        if elapsed < drop_dur
+          # Drop from above (40px up) with ease-in
+          t = elapsed.to_f / drop_dur
+          ease_in = t * t  # accelerate downward
+          offset_y = ((1.0 - ease_in) * -40).to_i
+          sp.y = base_y + offset_y
+          sp.zoom_x = FX_SCALE
+          sp.zoom_y = FX_SCALE
+          sp.opacity = [(t * 320).to_i, 255].min
+        elsif elapsed < drop_dur + bounce_dur
+          # Squash on impact then spring back
+          bt = (elapsed - drop_dur).to_f / bounce_dur
+          squash = Math.sin(bt * Math::PI) * 0.35
+          sp.zoom_x = FX_SCALE + squash * 0.5   # widen on impact
+          sp.zoom_y = FX_SCALE - squash * 0.5   # flatten on impact
+          # Small upward bounce
+          bounce_y = (Math.sin(bt * Math::PI) * 6).to_i
+          sp.y = base_y - bounce_y
+          sp.opacity = 255
+        else
+          # Settled at final position
+          sp.zoom_x = FX_SCALE
+          sp.zoom_y = FX_SCALE
+          sp.y = base_y
+          sp.opacity = 255
+        end
+
+      when :swirl
+        # Seals orbit around their placed position in a circular path.
+        # The orbit radius is proportional to the animation spread area
+        # so seals stay within the space allocated for effects.
+        base_x = fx[:base_x] || sp.x
+        base_y = fx[:base_y] || sp.y
+        total = [fx[:total_seals] || 1, 1].max
+        phase_offset = (fx[:seal_index] || 0) * (Math::PI * 2.0 / total)
+        # Orbit radius: 18px keeps the circle tight around the pokémon
+        radius = 18
+        # Angular speed: ~0.15 rad/frame → full revolution in ~42 frames
+        angle_rad = elapsed * 0.15 + phase_offset
+        sp.x = base_x + (Math.cos(angle_rad) * radius).to_i
+        sp.y = base_y + (Math.sin(angle_rad) * radius).to_i
+        sp.zoom_x = FX_SCALE
+        sp.zoom_y = FX_SCALE
+        sp.opacity = 255
+
+      when :puff
+        # Smoke-puff style: seals drift gently side-to-side while
+        # fading in and out like a wispy smoke trail / cloud.
+        base_x = fx[:base_x] || sp.x
+        base_y = fx[:base_y] || sp.y
+        total = [fx[:total_seals] || 1, 1].max
+        phase_offset = (fx[:seal_index] || 0) * (Math::PI * 2.0 / total)
+        # Gentle lateral drift (±8px)
+        drift_x = (Math.sin(elapsed * 0.18 + phase_offset) * 8).to_i
+        # Slow vertical float (±4px)
+        drift_y = (Math.cos(elapsed * 0.12 + phase_offset) * 4).to_i
+        sp.x = base_x + drift_x
+        sp.y = base_y + drift_y
+        # Fade cycle: oscillate opacity between ~80 and 255
+        fade = (Math.sin(elapsed * 0.22 + phase_offset) + 1.0) / 2.0
+        sp.opacity = (80 + fade * 175).to_i
+        # Slight scale pulse to reinforce the puffy feel
+        puff_scale = Math.sin(elapsed * 0.16 + phase_offset) * 0.2
+        sp.zoom_x = FX_SCALE + puff_scale
+        sp.zoom_y = FX_SCALE + puff_scale
       end
     end
   rescue => e
@@ -2004,6 +2249,7 @@ module BallSealsKIF
       sp.zoom_x = FX_SCALE
       sp.zoom_y = FX_SCALE
       sp.angle  = 0
+      sp.x      = fx[:base_x] if fx[:base_x]
       sp.y      = fx[:base_y] if fx[:base_y]
       sp.opacity = 255
     end

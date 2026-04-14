@@ -1659,11 +1659,6 @@ module BallSealsKIF
   # enough time to play uninterrupted before the next pokeball opens.
   MULTI_BALL_STAGGER = 30
 
-  # Extra per-ball delay (in frames) applied to the 2nd and 3rd
-  # pokeballs in vanilla (regular) and Ghost Classic+ UIs only.
-  # 20 frames = 1 second at 20fps.  EBDX is unaffected.
-  VANILLA_GHOST_EXTRA_BALL_DELAY = 20
-
   # Detect whether Ghost Classic+ UI mod is installed and active.
   # Checks for the characteristic aliases it applies to PokeBattle_Scene.
   # The result is cached per session; init_battle resets the cache so

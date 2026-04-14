@@ -67,7 +67,7 @@ module BallSealsKIF
   # GHOST_BURST_DELAY frames so the seals appear in sync with Ghost's
   # slightly later ball-open timing.  When Ghost is absent (vanilla
   # EBDX / standard scene) the burst is delayed by VANILLA_BURST_DELAY
-  # frames (2 seconds) to sync with the normal ball-open timing.
+  # frames (2.25 seconds) to sync with the normal ball-open timing.
   def self.trigger_vanilla_burst(scene, send_outs)
     return if !send_outs || send_outs.empty?
     battle  = scene.instance_variable_get(:@battle)  rescue nil

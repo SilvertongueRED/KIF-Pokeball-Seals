@@ -1638,7 +1638,6 @@ module BallSealsKIF
   # available (unique per Pokémon); falls back to a species+OT combo.
   def self.pkmn_cache_key(pkmn)
     return nil if !pkmn
-    pid = nil
     pid = pkmn.personalID if pkmn.respond_to?(:personalID)
     if pid
       return "pid_#{pid}"
@@ -1646,7 +1645,7 @@ module BallSealsKIF
     # Fallback: species + OT name + OT ID (less unique but workable)
     species = pkmn.respond_to?(:species) ? pkmn.species.to_s : "?"
     ot_name = pkmn.respond_to?(:ot) ? pkmn.ot.to_s : (pkmn.respond_to?(:otName) ? pkmn.otName.to_s : "?")
-    ot_id   = pkmn.respond_to?(:owner) && pkmn.owner.respond_to?(:id) ? pkmn.owner.id.to_s : "0"
+    ot_id   = (pkmn.respond_to?(:owner) && pkmn.owner && pkmn.owner.respond_to?(:id)) ? pkmn.owner.id.to_s : "0"
     "fallback_#{species}_#{ot_name}_#{ot_id}"
   rescue => e
     log("pkmn_cache_key ERROR: #{e.class}: #{e.message}")
@@ -1917,7 +1916,8 @@ module BallSealsKIF
       log("Installed pbStorePokemon hook")
       any_installed = true
     else
-      log("DBG: pbStorePokemon hook skipped (available=#{has_store}, already_aliased=#{has_any_method?(Object, :__bskif_pbStorePokemon) rescue false})")
+      already_aliased = begin; has_any_method?(Object, :__bskif_pbStorePokemon); rescue; false; end
+      log("DBG: pbStorePokemon hook skipped (available=#{has_store}, already_aliased=#{already_aliased})")
     end
 
     # Hook Pokemon storage withdraw methods
@@ -2138,7 +2138,7 @@ module BallSealsKIF
       # Also check capsule cache for display purposes
       if !slot
         cached = cached_capsule_for_pokemon(pkmn)
-        slot = cached[:slot] if cached
+        slot = cached[:slot] if cached && cached.is_a?(Hash) && cached.key?(:slot)
       end
       captxt = slot ? " [C#{slot}]" : ""
       "#{i + 1}. #{pkmn.name}#{captxt}"

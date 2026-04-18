@@ -22,9 +22,10 @@ end
 $BallSealsKIFLoaded ||= false
 module BallSealsKIF
   MOD_NAME = "BallSealsKIF"
-  MOD_VERSION = "0.8.0"
+  MOD_VERSION = "0.9.0"
   LOG_PATH = File.join(Dir.pwd, "Mods", "BallSealsKIF.log") rescue "BallSealsKIF.log"
   MAX_CAPSULES = 12
+  MIN_CAPSULES = 8
   MAX_SEALS_PER_CAPSULE = 10
   FX_SCALE = 3.0
   CANVAS_ICON_SIZE = 20
@@ -38,6 +39,13 @@ module BallSealsKIF
   @seal_sort_mode = :alpha
   def self.seal_sort_mode; @seal_sort_mode; end
   def self.seal_sort_mode=(v); @seal_sort_mode = v; end
+
+  # ── Capsule list sorting ────────────────────────────────────────
+  # Persists for the session.  :default = numbered order 1-N,
+  # :recent = recently edited capsules first.
+  @capsule_sort_mode = :default
+  def self.capsule_sort_mode; @capsule_sort_mode; end
+  def self.capsule_sort_mode=(v); @capsule_sort_mode = v; end
 
   # ── Animation group sorting ────────────────────────────────────
   # Same session-persistent sort for the Animations menu.
@@ -1438,12 +1446,19 @@ module BallSealsKIF
     data = $PokemonGlobal.instance_variable_get(:@ball_seals_kif)
     if !data || !data.is_a?(Hash)
       data = {
-        :capsules  => Array.new(MAX_CAPSULES) { |i| default_capsule(i + 1) },
+        :capsules  => Array.new(MIN_CAPSULES) { |i| default_capsule(i + 1) },
         :inventory => default_inventory
       }
       $PokemonGlobal.instance_variable_set(:@ball_seals_kif, data)
     end
-    data[:capsules] ||= Array.new(MAX_CAPSULES) { |i| default_capsule(i + 1) }
+    data[:capsules] ||= Array.new(MIN_CAPSULES) { |i| default_capsule(i + 1) }
+    # Ensure minimum capsule count
+    while data[:capsules].length < MIN_CAPSULES
+      slot_num = data[:capsules].length + 1
+      data[:capsules] << default_capsule(slot_num)
+    end
+    # Initialize capsule edit timestamps if not present
+    data[:capsule_edit_times] ||= {}
     merged_inventory = {}
     (data[:inventory] || {}).each do |sym, qty|
       resolved_sym = resolve_seal_sym(sym)
@@ -1474,22 +1489,334 @@ module BallSealsKIF
 
   def self.capsules
     data = ensure_global_data
-    return data ? data[:capsules] : Array.new(MAX_CAPSULES) { |i| default_capsule(i + 1) }
+    return data ? data[:capsules] : Array.new(MIN_CAPSULES) { |i| default_capsule(i + 1) }
+  end
+
+  def self.capsule_count
+    capsules.length
   end
 
   def self.capsule(slot)
-    return nil if slot.nil? || slot < 1 || slot > MAX_CAPSULES
-    return capsules[slot - 1]
+    caps = capsules
+    return nil if slot.nil? || slot < 1 || slot > caps.length
+    return caps[slot - 1]
   end
 
   def self.set_capsule(slot, cap)
-    return if slot.nil? || slot < 1 || slot > MAX_CAPSULES
+    caps = capsules
+    return if slot.nil? || slot < 1 || slot > caps.length
     data = ensure_global_data
     if !data
       pbMessage(intl("Please load a save file first.")) if defined?(pbMessage)
       return
     end
     data[:capsules][slot - 1] = cap
+    record_capsule_edit(slot)
+  end
+
+  # ── Capsule edit timestamp tracking ────────────────────────────────
+  # Records the time a capsule was last edited for "recently edited" sorting.
+  def self.record_capsule_edit(slot)
+    data = ensure_global_data
+    return if !data
+    data[:capsule_edit_times] ||= {}
+    data[:capsule_edit_times][slot] = Time.now.to_i
+  rescue => e
+    log("record_capsule_edit ERROR: #{e.class}: #{e.message}")
+  end
+
+  def self.capsule_edit_time(slot)
+    data = ensure_global_data
+    return 0 if !data
+    data[:capsule_edit_times] ||= {}
+    data[:capsule_edit_times][slot] || 0
+  end
+
+  # ── Capsule sorting helpers ────────────────────────────────────────
+  # Returns capsules as [slot_number, capsule] pairs sorted by current mode.
+  # :default = numbered order 1-N, :recent = recently edited first.
+  def self.sorted_capsule_pairs
+    caps = capsules
+    pairs = caps.each_with_index.map { |cap, i| [i + 1, cap] }
+    case @capsule_sort_mode
+    when :recent
+      pairs.sort_by { |slot, _cap| -(capsule_edit_time(slot)) }
+    else # :default
+      pairs
+    end
+  end
+
+  def self.capsule_sort_mode_label
+    case @capsule_sort_mode
+    when :recent then intl("Sort: Recent")
+    else              intl("Sort: 1-N")
+    end
+  end
+
+  def self.toggle_capsule_sort_mode
+    @capsule_sort_mode = (@capsule_sort_mode == :default) ? :recent : :default
+  end
+
+  # ── Dynamic capsule management ─────────────────────────────────────
+  # Adds a new blank capsule to the list. Returns the new slot number.
+  def self.add_blank_capsule
+    data = ensure_global_data
+    return nil if !data
+    new_slot = data[:capsules].length + 1
+    data[:capsules] << default_capsule(new_slot)
+    log("Added blank capsule at slot #{new_slot} (total: #{data[:capsules].length})")
+    new_slot
+  end
+
+  # Removes a capsule at the given slot index. Used when a stored
+  # pokemon's capsule is transferred to the pokemon's ball_capsule_data.
+  # Reassigns slots for pokemon that reference higher-numbered capsules.
+  def self.remove_capsule_at(slot)
+    data = ensure_global_data
+    return if !data || slot < 1 || slot > data[:capsules].length
+    data[:capsules].delete_at(slot - 1)
+    # Clean up edit time for removed slot and shift higher ones down
+    data[:capsule_edit_times] ||= {}
+    data[:capsule_edit_times].delete(slot)
+    new_times = {}
+    data[:capsule_edit_times].each do |s, t|
+      if s > slot
+        new_times[s - 1] = t
+      else
+        new_times[s] = t
+      end
+    end
+    data[:capsule_edit_times] = new_times
+    # Reassign pokemon capsule slots that reference shifted capsules
+    mons = party
+    mons.each do |pkmn|
+      next if !pkmn.respond_to?(:ball_capsule_slot) || !pkmn.ball_capsule_slot
+      if pkmn.ball_capsule_slot == slot
+        pkmn.ball_capsule_slot = nil
+      elsif pkmn.ball_capsule_slot > slot
+        pkmn.ball_capsule_slot -= 1
+      end
+    end
+    # Ensure minimum capsule count is maintained
+    while data[:capsules].length < MIN_CAPSULES
+      slot_num = data[:capsules].length + 1
+      data[:capsules] << default_capsule(slot_num)
+    end
+    log("Removed capsule at slot #{slot}, reassigned references (total: #{data[:capsules].length})")
+  rescue => e
+    log("remove_capsule_at ERROR: #{e.class}: #{e.message}")
+  end
+
+  # ── PC Storage capsule persistence ─────────────────────────────────
+  # Called when a pokemon is deposited into PC storage.
+  # Saves the capsule data onto the pokemon and replaces its GUI slot
+  # with a blank capsule so there are never fewer than MIN_CAPSULES.
+  def self.on_pokemon_deposited(pkmn)
+    return if !pkmn
+    slot = pkmn.respond_to?(:ball_capsule_slot) ? pkmn.ball_capsule_slot : nil
+    if slot && slot >= 1 && slot <= capsule_count
+      cap = capsule(slot)
+      if cap
+        # Store the full capsule data on the pokemon
+        pkmn.ball_capsule_data = clone_capsule(cap) if pkmn.respond_to?(:ball_capsule_data=)
+        # Replace the capsule in the GUI with a blank one
+        set_capsule(slot, default_capsule(slot))
+        log("Deposited pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: saved capsule #{slot} to pokemon, replaced with blank")
+      end
+    end
+    # Clear the slot reference since the pokemon is going to storage
+    pkmn.ball_capsule_slot = nil if pkmn.respond_to?(:ball_capsule_slot=)
+  rescue => e
+    log("on_pokemon_deposited ERROR: #{e.class}: #{e.message}")
+  end
+
+  # Called when a pokemon is withdrawn from PC storage.
+  # Restores the capsule from the pokemon's stored data into the GUI.
+  # If there are already MIN_CAPSULES or more capsules, a new slot is added.
+  def self.on_pokemon_withdrawn(pkmn)
+    return if !pkmn
+    stored_cap = pkmn.respond_to?(:ball_capsule_data) ? pkmn.ball_capsule_data : nil
+    return if !stored_cap || !stored_cap.is_a?(Hash) || !stored_cap[:placements] || stored_cap[:placements].empty?
+    data = ensure_global_data
+    return if !data
+    # Find a blank capsule slot to reuse, or add a new one
+    reuse_slot = nil
+    data[:capsules].each_with_index do |cap, i|
+      if !cap[:placements] || cap[:placements].empty?
+        reuse_slot = i + 1
+        break
+      end
+    end
+    if reuse_slot
+      # Reuse an existing blank slot
+      data[:capsules][reuse_slot - 1] = stored_cap
+      pkmn.ball_capsule_slot = reuse_slot if pkmn.respond_to?(:ball_capsule_slot=)
+      log("Withdrew pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: restored capsule to existing slot #{reuse_slot}")
+    else
+      # All slots are in use — add a new capsule slot beyond current count
+      new_slot = add_blank_capsule
+      data[:capsules][new_slot - 1] = stored_cap
+      pkmn.ball_capsule_slot = new_slot if pkmn.respond_to?(:ball_capsule_slot=)
+      log("Withdrew pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: restored capsule to new slot #{new_slot}")
+    end
+    # Clear the stored data since it's now in the GUI
+    pkmn.ball_capsule_data = nil if pkmn.respond_to?(:ball_capsule_data=)
+  rescue => e
+    log("on_pokemon_withdrawn ERROR: #{e.class}: #{e.message}")
+  end
+
+  # ── PC storage hooks ──────────────────────────────────────────────
+  # Installs hooks on the Pokemon storage system to trigger capsule
+  # persistence when pokemon are deposited/withdrawn.
+  def self.install_storage_hooks
+    return if @storage_hooks_installed
+
+    # Hook pbStorePokemon (deposit to PC)
+    has_store = false
+    begin
+      has_store = Object.method_defined?(:pbStorePokemon) || Object.private_method_defined?(:pbStorePokemon)
+    rescue
+    end
+    if has_store
+      Object.class_eval do
+        alias_method :__bskif_pbStorePokemon, :pbStorePokemon unless method_defined?(:__bskif_pbStorePokemon)
+        define_method(:pbStorePokemon) do |pkmn, *args|
+          begin
+            BallSealsKIF.on_pokemon_deposited(pkmn)
+          rescue => e
+            BallSealsKIF.log("pbStorePokemon hook ERROR: #{e.class}: #{e.message}")
+          end
+          __bskif_pbStorePokemon(pkmn, *args)
+        end
+      end
+      log("Installed pbStorePokemon hook")
+    end
+
+    # Hook Pokemon storage withdraw methods
+    # Essentials v20+ uses PokemonStorageScreen
+    if defined?(PokemonStorageScreen) && PokemonStorageScreen.method_defined?(:pbWithdraw)
+      unless PokemonStorageScreen.method_defined?(:__bskif_pbWithdraw)
+        PokemonStorageScreen.class_eval do
+          alias __bskif_pbWithdraw pbWithdraw
+          def pbWithdraw(*args)
+            ret = __bskif_pbWithdraw(*args)
+            begin
+              # After withdrawal, check party for pokemon with stored capsule data
+              BallSealsKIF.party.each do |pkmn|
+                next if !pkmn.respond_to?(:ball_capsule_data) || !pkmn.ball_capsule_data
+                BallSealsKIF.on_pokemon_withdrawn(pkmn)
+              end
+            rescue => e
+              BallSealsKIF.log("PokemonStorageScreen#pbWithdraw hook ERROR: #{e.class}: #{e.message}")
+            end
+            ret
+          end
+        end
+        log("Installed PokemonStorageScreen#pbWithdraw hook")
+      end
+    end
+
+    # Hook pbDepositPokemon for party -> PC transfers
+    if defined?(PokemonStorageScreen) && PokemonStorageScreen.method_defined?(:pbDeposit)
+      unless PokemonStorageScreen.method_defined?(:__bskif_pbDeposit)
+        PokemonStorageScreen.class_eval do
+          alias __bskif_pbDeposit pbDeposit
+          def pbDeposit(*args)
+            # Capture which pokemon are about to be deposited
+            begin
+              depositing = []
+              old_party = BallSealsKIF.party.dup
+            rescue
+              old_party = []
+            end
+            ret = __bskif_pbDeposit(*args)
+            begin
+              new_party = BallSealsKIF.party
+              # Find pokemon that were in old_party but not in new_party
+              old_party.each do |pkmn|
+                next if new_party.include?(pkmn)
+                BallSealsKIF.on_pokemon_deposited(pkmn)
+              end
+            rescue => e
+              BallSealsKIF.log("PokemonStorageScreen#pbDeposit hook ERROR: #{e.class}: #{e.message}")
+            end
+            ret
+          end
+        end
+        log("Installed PokemonStorageScreen#pbDeposit hook")
+      end
+    end
+
+    # Also hook drag-and-drop PC operations (pbPlace, pbSwap)
+    if defined?(PokemonStorageScreen) && PokemonStorageScreen.method_defined?(:pbPlace)
+      unless PokemonStorageScreen.method_defined?(:__bskif_pbPlace)
+        PokemonStorageScreen.class_eval do
+          alias __bskif_pbPlace pbPlace
+          def pbPlace(*args)
+            begin
+              old_party = BallSealsKIF.party.dup
+            rescue
+              old_party = []
+            end
+            ret = __bskif_pbPlace(*args)
+            begin
+              new_party = BallSealsKIF.party
+              # Check for deposited pokemon
+              old_party.each do |pkmn|
+                next if new_party.include?(pkmn)
+                BallSealsKIF.on_pokemon_deposited(pkmn)
+              end
+              # Check for withdrawn pokemon with stored capsule data
+              new_party.each do |pkmn|
+                next if old_party.include?(pkmn)
+                next if !pkmn.respond_to?(:ball_capsule_data) || !pkmn.ball_capsule_data
+                BallSealsKIF.on_pokemon_withdrawn(pkmn)
+              end
+            rescue => e
+              BallSealsKIF.log("PokemonStorageScreen#pbPlace hook ERROR: #{e.class}: #{e.message}")
+            end
+            ret
+          end
+        end
+        log("Installed PokemonStorageScreen#pbPlace hook")
+      end
+    end
+
+    if defined?(PokemonStorageScreen) && PokemonStorageScreen.method_defined?(:pbSwap)
+      unless PokemonStorageScreen.method_defined?(:__bskif_pbSwap)
+        PokemonStorageScreen.class_eval do
+          alias __bskif_pbSwap pbSwap
+          def pbSwap(*args)
+            begin
+              old_party = BallSealsKIF.party.dup
+            rescue
+              old_party = []
+            end
+            ret = __bskif_pbSwap(*args)
+            begin
+              new_party = BallSealsKIF.party
+              old_party.each do |pkmn|
+                next if new_party.include?(pkmn)
+                BallSealsKIF.on_pokemon_deposited(pkmn)
+              end
+              new_party.each do |pkmn|
+                next if old_party.include?(pkmn)
+                next if !pkmn.respond_to?(:ball_capsule_data) || !pkmn.ball_capsule_data
+                BallSealsKIF.on_pokemon_withdrawn(pkmn)
+              end
+            rescue => e
+              BallSealsKIF.log("PokemonStorageScreen#pbSwap hook ERROR: #{e.class}: #{e.message}")
+            end
+            ret
+          end
+        end
+        log("Installed PokemonStorageScreen#pbSwap hook")
+      end
+    end
+
+    @storage_hooks_installed = true
+  rescue => e
+    log("install_storage_hooks ERROR: #{e.class}: #{e.message}")
   end
 
   def self.clone_capsule(cap)
@@ -1514,6 +1841,11 @@ module BallSealsKIF
         # Array of { :seal => Symbol, :x => Float, :y => Float } hashes.
         def ball_seal_placements; @ball_seal_placements; end
         def ball_seal_placements=(arr); @ball_seal_placements = arr; end
+        # Full capsule data persisted on the Pokémon for PC storage.
+        # When a Pokémon is deposited, its capsule is stored here so it
+        # can be restored when the Pokémon is withdrawn.
+        def ball_capsule_data; @ball_capsule_data; end
+        def ball_capsule_data=(val); @ball_capsule_data = val; end
       end
     end
     if defined?(PokeBattle_Pokemon)
@@ -1524,6 +1856,8 @@ module BallSealsKIF
         def ball_seals=(arr); @ball_seals = (arr || []).map { |x| x.is_a?(String) ? x.to_sym : x }.compact; end
         def ball_seal_placements; @ball_seal_placements; end
         def ball_seal_placements=(arr); @ball_seal_placements = arr; end
+        def ball_capsule_data; @ball_capsule_data; end
+        def ball_capsule_data=(val); @ball_capsule_data = val; end
       end
     end
   end
@@ -1557,7 +1891,7 @@ module BallSealsKIF
     #    assignment, so it must be checked first).
     slot = nil
     slot = pkmn.ball_capsule_slot if pkmn.respond_to?(:ball_capsule_slot)
-    if slot && slot >= 1 && slot <= MAX_CAPSULES
+    if slot && slot >= 1 && slot <= capsule_count
       cap = capsule(slot)
       return clone_capsule(cap) if cap
     end
@@ -1609,7 +1943,7 @@ module BallSealsKIF
     # Resolve from local capsule slot or legacy seals
     slot = pkmn.respond_to?(:ball_capsule_slot) ? pkmn.ball_capsule_slot : nil
     cap = nil
-    if slot && slot >= 1 && slot <= MAX_CAPSULES
+    if slot && slot >= 1 && slot <= capsule_count
       cap = capsule(slot)
     end
     if (!cap || !cap[:placements] || cap[:placements].empty?) &&
@@ -1982,12 +2316,12 @@ module BallSealsKIF
       particles = [[sp, vx, vy, 0, rot, vr]]
       # All seals start simultaneously — optional burst_delay staggers them
       # when Ghost Classic+ shifts the ball-open timing later.
-      # :hold keeps seals at full opacity for ~3.5 seconds (70 frames at 20fps)
+      # :hold keeps seals at full opacity for ~3.0 seconds (60 frames at 20fps)
       # before the fade-out begins.
       started = burst_delay <= 0
       anim_type = capsule_anim_type(cap, sym)
       @active_fx << { :vp => overlay, :frames => 36, :delay => burst_delay,
-                      :hold => 70, :hold_total => 70, :started => started,
+                      :hold => 60, :hold_total => 60, :started => started,
                       :particles => particles, :anim_type => anim_type,
                       :seal_index => seal_idx, :total_seals => sorted.length,
                       :base_x => sp.x, :base_y => sp.y,
@@ -2349,8 +2683,8 @@ module BallSealsKIF
       owns_viewport = true
     end
     start_capsule_burst_on_viewport(vp, Graphics.width / 2, Graphics.height / 2, cap)
-    # hold (70) + fade (36) + small buffer (4) = total preview frames
-    preview_frames = 70 + 36 + 4
+    # hold (60) + fade (36) + small buffer (4) = total preview frames
+    preview_frames = 60 + 36 + 4
     preview_frames.times do
       Graphics.update
       begin
@@ -2397,6 +2731,8 @@ module BallSealsKIF
     scan_icons_folder
     ensure_global_data
     install_graphics_tick_hook
+    install_storage_hooks
+    install_overworld_menu_entry
     log("=== #{MOD_NAME} #{MOD_VERSION} init ===")
     root = detect_game_root
     log("Game root detected: #{root}")
@@ -2413,6 +2749,42 @@ module BallSealsKIF
     end
   rescue => e
     log("init ERROR: #{e.class}: #{e.message}")
+  end
+
+  # ── Overworld Menu integration ────────────────────────────────────
+  # Registers a "Ball Seals" entry in the Overworld Menu mod (if installed)
+  # so players can open the capsule editor from the overworld pause menu.
+  def self.install_overworld_menu_entry
+    return if @overworld_menu_registered
+    return if !defined?(OverworldMenu) || !OverworldMenu.respond_to?(:register)
+    OverworldMenu.register(:ball_seals, {
+      label: "Ball Seals",
+      handler: proc { |screen|
+        # Close the Overworld Menu scene first
+        scene = screen.instance_variable_get(:@scene)
+        scene.pbEndScene if scene
+        $game_temp.in_menu = false if defined?($game_temp) && $game_temp.respond_to?(:in_menu=)
+        # Open the Ball Seals capsule select scene with fade transition
+        begin
+          if defined?(pbFadeOutIn)
+            pbFadeOutIn {
+              BallSealsKIF.open_capsule_select
+            }
+          else
+            BallSealsKIF.open_capsule_select
+          end
+        rescue => e
+          BallSealsKIF.log("Overworld menu handler ERROR: #{e.class}: #{e.message}")
+        end
+        :exit_menu
+      },
+      priority: 40,
+      exit_on_select: true
+    })
+    @overworld_menu_registered = true
+    log("Registered Ball Seals in Overworld Menu")
+  rescue => e
+    log("install_overworld_menu_entry ERROR: #{e.class}: #{e.message}")
   end
 end
 

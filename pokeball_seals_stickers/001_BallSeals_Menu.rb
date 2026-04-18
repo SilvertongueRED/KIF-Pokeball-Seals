@@ -102,6 +102,16 @@ module BallSealsKIF
     end
   end
 
+  # Opens the Ball Seals hub directly (for Overworld Menu integration).
+  def self.open_capsule_select
+    begin
+      BallSealsHubScene.new.main
+    rescue => e
+      log("open_capsule_select ERROR: #{e.class}: #{e.message}\n#{(e.backtrace || [])[0,5].join("\n")}")
+      pbMessage(intl("Ball Seals error: {1}", e.message.to_s[0, 60])) if defined?(pbMessage)
+    end
+  end
+
   # ── Case-insensitive label lookup ──────────────────────────────────
   def self.find_label_index(cmds, label)
     target = label.to_s.downcase

@@ -1549,7 +1549,7 @@ module BallSealsKIF
   def self.capsule_sort_mode_label
     case @capsule_sort_mode
     when :recent then intl("Sort: Recent")
-    else              intl("Sort: 1-N")
+    else              intl("Sort: #")
     end
   end
 
@@ -1668,6 +1668,13 @@ module BallSealsKIF
   # ── PC storage hooks ──────────────────────────────────────────────
   # Installs hooks on the Pokemon storage system to trigger capsule
   # persistence when pokemon are deposited/withdrawn.
+  def self.party_contains_exact?(mons, pkmn)
+    return false if !mons || !pkmn
+    mons.any? { |m| m.equal?(pkmn) }
+  rescue
+    false
+  end
+
   def self.install_storage_hooks
     return if @storage_hooks_installed
 
@@ -1734,7 +1741,7 @@ module BallSealsKIF
               new_party = BallSealsKIF.party
               # Find pokemon that were in old_party but not in new_party
               old_party.each do |pkmn|
-                next if new_party.include?(pkmn)
+                next if BallSealsKIF.party_contains_exact?(new_party, pkmn)
                 BallSealsKIF.on_pokemon_deposited(pkmn)
               end
             rescue => e
@@ -1763,12 +1770,12 @@ module BallSealsKIF
               new_party = BallSealsKIF.party
               # Check for deposited pokemon
               old_party.each do |pkmn|
-                next if new_party.include?(pkmn)
+                next if BallSealsKIF.party_contains_exact?(new_party, pkmn)
                 BallSealsKIF.on_pokemon_deposited(pkmn)
               end
               # Check for withdrawn pokemon with stored capsule data
               new_party.each do |pkmn|
-                next if old_party.include?(pkmn)
+                next if BallSealsKIF.party_contains_exact?(old_party, pkmn)
                 next if !pkmn.respond_to?(:ball_capsule_data) || !pkmn.ball_capsule_data
                 BallSealsKIF.on_pokemon_withdrawn(pkmn)
               end
@@ -1796,11 +1803,11 @@ module BallSealsKIF
             begin
               new_party = BallSealsKIF.party
               old_party.each do |pkmn|
-                next if new_party.include?(pkmn)
+                next if BallSealsKIF.party_contains_exact?(new_party, pkmn)
                 BallSealsKIF.on_pokemon_deposited(pkmn)
               end
               new_party.each do |pkmn|
-                next if old_party.include?(pkmn)
+                next if BallSealsKIF.party_contains_exact?(old_party, pkmn)
                 next if !pkmn.respond_to?(:ball_capsule_data) || !pkmn.ball_capsule_data
                 BallSealsKIF.on_pokemon_withdrawn(pkmn)
               end

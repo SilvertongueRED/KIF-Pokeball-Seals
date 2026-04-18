@@ -373,6 +373,7 @@ module BallSealsKIF
 
   def self.init_menu
     ok = install_pause_menu_hook
+    install_overworld_menu_entry if defined?(OverworldMenu)
     log("init_menu complete: #{ok ? 'OK' : 'FAILED'}")
   end
 end

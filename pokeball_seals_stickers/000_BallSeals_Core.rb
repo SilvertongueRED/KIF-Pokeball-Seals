@@ -1454,7 +1454,8 @@ module BallSealsKIF
     data[:capsules] ||= Array.new(MIN_CAPSULES) { |i| default_capsule(i + 1) }
     # Ensure minimum capsule count
     while data[:capsules].length < MIN_CAPSULES
-      data[:capsules] << default_capsule(data[:capsules].length + 1)
+      slot_num = data[:capsules].length + 1
+      data[:capsules] << default_capsule(slot_num)
     end
     # Initialize capsule edit timestamps if not present
     data[:capsule_edit_times] ||= {}
@@ -1598,7 +1599,8 @@ module BallSealsKIF
     end
     # Ensure minimum capsule count is maintained
     while data[:capsules].length < MIN_CAPSULES
-      data[:capsules] << default_capsule(data[:capsules].length + 1)
+      slot_num = data[:capsules].length + 1
+      data[:capsules] << default_capsule(slot_num)
     end
     log("Removed capsule at slot #{slot}, reassigned references (total: #{data[:capsules].length})")
   rescue => e

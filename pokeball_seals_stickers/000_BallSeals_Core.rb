@@ -1676,7 +1676,7 @@ module BallSealsKIF
     # Store a snapshot directly on the Pokémon — belt-and-suspenders
     # persistence that survives deposit through ANY code path.
     if pkmn.respond_to?(:ball_capsule_data=)
-      stored = clone_capsule(cap)
+      stored = clone_capsule(cloned)
       stored[:stored_slot] = slot
       pkmn.ball_capsule_data = stored
     end

@@ -1608,6 +1608,32 @@ module BallSealsKIF
   end
 
   # ── PC Storage capsule persistence ─────────────────────────────────
+  def self.blank_capsule_at(slot)
+    data = ensure_global_data
+    return if !data || slot < 1 || slot > data[:capsules].length
+    data[:capsules][slot - 1] = default_capsule(slot)
+    data[:capsule_edit_times] ||= {}
+    data[:capsule_edit_times].delete(slot)
+    log("Blanked capsule at slot #{slot}")
+  rescue => e
+    log("blank_capsule_at ERROR: #{e.class}: #{e.message}")
+  end
+
+  def self.unpack_stored_capsule(raw_data)
+    return [nil, nil] if !raw_data || !raw_data.is_a?(Hash)
+    if raw_data[:capsule].is_a?(Hash)
+      stored_slot = raw_data[:slot]
+      stored_cap = clone_capsule(raw_data[:capsule])
+    else
+      stored_slot = raw_data[:stored_slot] || raw_data[:slot]
+      stored_cap = clone_capsule(raw_data)
+    end
+    [stored_slot, stored_cap]
+  rescue => e
+    log("unpack_stored_capsule ERROR: #{e.class}: #{e.message}")
+    [nil, nil]
+  end
+
   # Called when a pokemon is deposited into PC storage.
   # Saves the capsule data onto the pokemon and removes the capsule
   # slot from the GUI so it is no longer visible or editable.
@@ -1618,15 +1644,17 @@ module BallSealsKIF
     if slot && slot >= 1 && slot <= capsule_count
       cap = capsule(slot)
       if cap
-        # Store the full capsule data on the pokemon
-        pkmn.ball_capsule_data = clone_capsule(cap) if pkmn.respond_to?(:ball_capsule_data=)
-        # Clear the slot reference BEFORE removing so remove_capsule_at
-        # doesn't try to clear it again during slot reassignment.
+        # Store the full capsule data + original slot on the pokemon so
+        # this data survives save/load while in PC storage.
+        if pkmn.respond_to?(:ball_capsule_data=)
+          stored = clone_capsule(cap)
+          stored[:stored_slot] = slot
+          pkmn.ball_capsule_data = stored
+        end
         pkmn.ball_capsule_slot = nil if pkmn.respond_to?(:ball_capsule_slot=)
-        # Remove the capsule from the GUI entirely so it is no longer
-        # visible or editable until the pokemon is withdrawn.
-        remove_capsule_at(slot)
-        log("Deposited pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: saved capsule #{slot} to pokemon, removed from GUI")
+        # Replace the capsule with a blank slot in the GUI.
+        blank_capsule_at(slot)
+        log("Deposited pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: cached capsule #{slot} to pokemon, replaced with blank slot")
         return
       end
     end
@@ -1641,30 +1669,52 @@ module BallSealsKIF
   # If there are already MIN_CAPSULES or more capsules, a new slot is added.
   def self.on_pokemon_withdrawn(pkmn)
     return if !pkmn
-    stored_cap = pkmn.respond_to?(:ball_capsule_data) ? pkmn.ball_capsule_data : nil
-    return if !stored_cap || !stored_cap.is_a?(Hash) || !stored_cap[:placements] || stored_cap[:placements].empty?
+    raw_data = pkmn.respond_to?(:ball_capsule_data) ? pkmn.ball_capsule_data : nil
+    stored_slot, stored_cap = unpack_stored_capsule(raw_data)
+    return if !stored_cap || !stored_cap.is_a?(Hash)
     data = ensure_global_data
     return if !data
-    # Find a blank capsule slot to reuse, or add a new one
-    reuse_slot = nil
-    data[:capsules].each_with_index do |cap, i|
-      if !cap[:placements] || cap[:placements].empty?
-        reuse_slot = i + 1
-        break
+
+    # Prefer restoring to the original slot if it is currently blank.
+    restore_slot = nil
+    if stored_slot && stored_slot >= 1 && stored_slot <= data[:capsules].length
+      target_cap = data[:capsules][stored_slot - 1]
+      if !target_cap || !target_cap[:placements] || target_cap[:placements].empty?
+        restore_slot = stored_slot
       end
     end
-    if reuse_slot
-      # Reuse an existing blank slot
-      data[:capsules][reuse_slot - 1] = stored_cap
-      pkmn.ball_capsule_slot = reuse_slot if pkmn.respond_to?(:ball_capsule_slot=)
-      log("Withdrew pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: restored capsule to existing slot #{reuse_slot}")
-    else
-      # All slots are in use — add a new capsule slot beyond current count
-      new_slot = add_blank_capsule
-      data[:capsules][new_slot - 1] = stored_cap
-      pkmn.ball_capsule_slot = new_slot if pkmn.respond_to?(:ball_capsule_slot=)
-      log("Withdrew pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: restored capsule to new slot #{new_slot}")
+
+    # Otherwise find a blank capsule slot to reuse.
+    if !restore_slot
+      data[:capsules].each_with_index do |cap, i|
+        if !cap[:placements] || cap[:placements].empty?
+          restore_slot = i + 1
+          break
+        end
+      end
     end
+
+    # If all slots are in use, add a new slot.
+    if !restore_slot
+      restore_slot = add_blank_capsule
+    end
+
+    if restore_slot
+      data[:capsules][restore_slot - 1] = stored_cap
+      pkmn.ball_capsule_slot = restore_slot if pkmn.respond_to?(:ball_capsule_slot=)
+      log("Withdrew pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: restored capsule to slot #{restore_slot}")
+    end
+
+    # Fallback to a blank slot if restore failed unexpectedly.
+    if !pkmn.respond_to?(:ball_capsule_slot) || !pkmn.ball_capsule_slot
+      data[:capsules].each_with_index do |cap, i|
+        if !cap[:placements] || cap[:placements].empty?
+          pkmn.ball_capsule_slot = i + 1 if pkmn.respond_to?(:ball_capsule_slot=)
+          break
+        end
+      end
+    end
+
     # Clear the stored data since it's now in the GUI
     pkmn.ball_capsule_data = nil if pkmn.respond_to?(:ball_capsule_data=)
   rescue => e

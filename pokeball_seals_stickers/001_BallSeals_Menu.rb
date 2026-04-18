@@ -45,6 +45,8 @@ end
 
 class BallSealsHubScene
   def main
+    # Ensure storage hooks are installed (lazy retry for late-loading classes)
+    BallSealsKIF.ensure_storage_hooks
     loop do
       cmd = BallSealsCommandScene.new(
         BallSealsKIF.intl("Ball Capsules"),
@@ -70,10 +72,12 @@ class BallSealsHubScene
         next if slot.nil?
         pkmn.ball_capsule_slot = slot
         pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)
+        BallSealsKIF.cache_capsule_for_pokemon(pkmn, slot)
         pbMessage(BallSealsKIF.intl("Assigned Capsule {1} to {2}.", slot, pkmn.name))
       when 2
         pkmn = BallSealsKIF.choose_party_pokemon(BallSealsKIF.intl("Remove capsule from which Pokémon?"))
         next if !pkmn
+        BallSealsKIF.clear_capsule_cache(pkmn)
         pkmn.ball_capsule_slot = nil if pkmn.respond_to?(:ball_capsule_slot=)
         pkmn.ball_seals = [] if pkmn.respond_to?(:ball_seals=)
         pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)

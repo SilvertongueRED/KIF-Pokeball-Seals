@@ -3,20 +3,20 @@ class BallSealsCapsuleSelectScene
   def choose_slot(prompt = nil)
     loop do
       pairs = BallSealsKIF.sorted_capsule_pairs
-      commands = pairs.map do |slot, cap|
+      sort_label = BallSealsKIF.capsule_sort_mode_label
+      commands = [sort_label]
+      commands.concat(pairs.map do |slot, cap|
         count = (cap[:placements] || []).length
         "%02d. %s (%d/%d)" % [slot, cap[:name], count, BallSealsKIF::MAX_SEALS_PER_CAPSULE]
-      end
-      sort_label = BallSealsKIF.capsule_sort_mode_label
-      commands << sort_label
-      idx = BallSealsCommandScene.new(prompt || BallSealsKIF.intl("Choose Capsule"), commands, BallSealsKIF.intl("Pick a slot. Last option toggles sort.")).main
+      end)
+      idx = BallSealsCommandScene.new(prompt || BallSealsKIF.intl("Choose Capsule"), commands, BallSealsKIF.intl("Pick a slot. First option toggles sort.")).main
       return nil if idx.nil?
-      if idx == commands.length - 1
+      if idx == 0
         # Toggle sort mode
         BallSealsKIF.toggle_capsule_sort_mode
         next
       end
-      return pairs[idx][0]  # Return the actual slot number
+      return pairs[idx - 1][0]  # Return the actual slot number
     end
   end
 end

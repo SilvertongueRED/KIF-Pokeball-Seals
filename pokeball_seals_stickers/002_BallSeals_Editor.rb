@@ -1,13 +1,23 @@
 # 002_BallSeals_Editor.rb
 class BallSealsCapsuleSelectScene
   def choose_slot(prompt = nil)
-    commands = BallSealsKIF.capsules.each_with_index.map do |cap, i|
-      count = (cap[:placements] || []).length
-      "%02d. %s (%d/%d)" % [i + 1, cap[:name], count, BallSealsKIF::MAX_SEALS_PER_CAPSULE]
+    loop do
+      pairs = BallSealsKIF.sorted_capsule_pairs
+      commands = pairs.map do |slot, cap|
+        count = (cap[:placements] || []).length
+        "%02d. %s (%d/%d)" % [slot, cap[:name], count, BallSealsKIF::MAX_SEALS_PER_CAPSULE]
+      end
+      sort_label = BallSealsKIF.capsule_sort_mode_label
+      commands << sort_label
+      idx = BallSealsCommandScene.new(prompt || BallSealsKIF.intl("Choose Capsule"), commands, BallSealsKIF.intl("Pick a slot. Last option toggles sort.")).main
+      return nil if idx.nil?
+      if idx == commands.length - 1
+        # Toggle sort mode
+        BallSealsKIF.toggle_capsule_sort_mode
+        next
+      end
+      return pairs[idx][0]  # Return the actual slot number
     end
-    idx = BallSealsCommandScene.new(prompt || BallSealsKIF.intl("Choose Capsule"), commands, BallSealsKIF.intl("Pick a slot.")).main
-    return nil if idx.nil?
-    idx + 1
   end
 end
 

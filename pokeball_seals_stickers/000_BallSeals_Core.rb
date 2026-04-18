@@ -1609,8 +1609,9 @@ module BallSealsKIF
 
   # ── PC Storage capsule persistence ─────────────────────────────────
   # Called when a pokemon is deposited into PC storage.
-  # Saves the capsule data onto the pokemon and replaces its GUI slot
-  # with a blank capsule so there are never fewer than MIN_CAPSULES.
+  # Saves the capsule data onto the pokemon and removes the capsule
+  # slot from the GUI so it is no longer visible or editable.
+  # The capsule is restored when the pokemon is withdrawn.
   def self.on_pokemon_deposited(pkmn)
     return if !pkmn
     slot = pkmn.respond_to?(:ball_capsule_slot) ? pkmn.ball_capsule_slot : nil
@@ -1619,9 +1620,14 @@ module BallSealsKIF
       if cap
         # Store the full capsule data on the pokemon
         pkmn.ball_capsule_data = clone_capsule(cap) if pkmn.respond_to?(:ball_capsule_data=)
-        # Replace the capsule in the GUI with a blank one
-        set_capsule(slot, default_capsule(slot))
-        log("Deposited pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: saved capsule #{slot} to pokemon, replaced with blank")
+        # Clear the slot reference BEFORE removing so remove_capsule_at
+        # doesn't try to clear it again during slot reassignment.
+        pkmn.ball_capsule_slot = nil if pkmn.respond_to?(:ball_capsule_slot=)
+        # Remove the capsule from the GUI entirely so it is no longer
+        # visible or editable until the pokemon is withdrawn.
+        remove_capsule_at(slot)
+        log("Deposited pokemon #{pkmn.respond_to?(:name) ? pkmn.name : '?'}: saved capsule #{slot} to pokemon, removed from GUI")
+        return
       end
     end
     # Clear the slot reference since the pokemon is going to storage
@@ -2711,6 +2717,12 @@ module BallSealsKIF
     return if frame && @last_tick_frame == frame
     @last_tick_frame = frame
     update_effects
+    # Deferred Overworld Menu registration: retry until successful.
+    # The Overworld Menu mod may load after this mod, so we keep trying
+    # on each tick until the registration succeeds.
+    if !@overworld_menu_registered && defined?(OverworldMenu) && OverworldMenu.respond_to?(:register)
+      install_overworld_menu_entry
+    end
   rescue => e
     log("tick ERROR: #{e.class}: #{e.message}")
   end

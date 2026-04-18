@@ -2847,7 +2847,7 @@ module BallSealsKIF
         end
         :exit_menu
       },
-      priority: 40,
+      priority: 0,
       exit_on_select: true
     })
     @overworld_menu_registered = true

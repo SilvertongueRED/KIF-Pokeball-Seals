@@ -640,6 +640,10 @@ module BallSealsKIF
     install_sendout_hooks
     install_burst_replacement_hook
     install_battle_start_hook
+    # Ensure the network serializer carries seal data in PvP / co-op.
+    # Safe + idempotent; retries here in case PokemonSerializer loaded
+    # after the core init pass.
+    install_serializer_hook
     if ghost_classic_installed?
       log("Ghost Classic+ UI detected — burst delay set to #{GHOST_BURST_DELAY} frames")
     else

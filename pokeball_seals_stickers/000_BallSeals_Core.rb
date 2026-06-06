@@ -2272,14 +2272,23 @@ module BallSealsKIF
     if defined?(Pokemon)
       Pokemon.class_eval do
         def ball_capsule_slot; @ball_capsule_slot; end
-        def ball_capsule_slot=(val); @ball_capsule_slot = val; end
+        # Assigning a local capsule slot clears any foreign owner stamp so
+        # the Pokémon is treated as locally-owned again (live slot lookup).
+        def ball_capsule_slot=(val); @ball_capsule_slot = val; @ball_seal_owner_pid = nil; end
         def ball_seals; @ball_seals ||= []; @ball_seals; end
         def ball_seals=(arr); @ball_seals = (arr || []).map { |x| x.is_a?(String) ? x.to_sym : x }.compact; end
         # Resolved capsule placements baked onto the Pokémon so they
-        # survive Marshal serialization for link battles / trades.
-        # Array of { :seal => Symbol, :x => Float, :y => Float } hashes.
+        # travel with it over the network (KIF JSON serializer) for link
+        # battles / co-op / trades.
+        # Array of { :seal => Symbol, :x => Float, :y => Float } hashes
+        # (string keys when they arrived over the wire as JSON).
         def ball_seal_placements; @ball_seal_placements; end
         def ball_seal_placements=(arr); @ball_seal_placements = arr; end
+        # Trainer ID stamped when placements are resolved for the wire, so
+        # the remote client can tell a foreign Pokémon (render baked
+        # layout) from one it owns locally (use its live capsule slot).
+        def ball_seal_owner_pid; @ball_seal_owner_pid; end
+        def ball_seal_owner_pid=(v); @ball_seal_owner_pid = v; end
         # Full capsule data persisted on the Pokémon for PC storage.
         # When a Pokémon is deposited, its capsule is stored here so it
         # can be restored when the Pokémon is withdrawn.
@@ -2290,11 +2299,13 @@ module BallSealsKIF
     if defined?(PokeBattle_Pokemon)
       PokeBattle_Pokemon.class_eval do
         def ball_capsule_slot; @ball_capsule_slot; end
-        def ball_capsule_slot=(val); @ball_capsule_slot = val; end
+        def ball_capsule_slot=(val); @ball_capsule_slot = val; @ball_seal_owner_pid = nil; end
         def ball_seals; @ball_seals ||= []; @ball_seals; end
         def ball_seals=(arr); @ball_seals = (arr || []).map { |x| x.is_a?(String) ? x.to_sym : x }.compact; end
         def ball_seal_placements; @ball_seal_placements; end
         def ball_seal_placements=(arr); @ball_seal_placements = arr; end
+        def ball_seal_owner_pid; @ball_seal_owner_pid; end
+        def ball_seal_owner_pid=(v); @ball_seal_owner_pid = v; end
         def ball_capsule_data; @ball_capsule_data; end
         def ball_capsule_data=(val); @ball_capsule_data = val; end
       end
@@ -2331,6 +2342,22 @@ module BallSealsKIF
 
   def self.capsule_for_pokemon(pkmn)
     return nil if !pkmn
+    # 0) Remote Pokémon (link battle / co-op / trade).  When seal
+    #    placements arrived over the wire stamped with a DIFFERENT
+    #    trainer's ID than the local player, the local capsule-slot list
+    #    does NOT apply (slot numbers index the local player's own
+    #    capsules).  Render the baked layout that travelled with the
+    #    Pokémon so every player sees the owner's chosen capsule.
+    begin
+      stamp = pkmn.respond_to?(:ball_seal_owner_pid) ? pkmn.ball_seal_owner_pid : nil
+      lid = local_trainer_id
+      if stamp && lid && stamp != lid
+        baked = read_baked_placements(pkmn)
+        return { :name => "Baked", :placements => baked } if baked
+      end
+    rescue => e
+      log("capsule_for_pokemon remote-detect ERROR: #{e.class}: #{e.message}")
+    end
     # 1) Capsule slot (local save data — always reflects the latest user
     #    assignment, so it must be checked first).
     slot = nil
@@ -2349,15 +2376,8 @@ module BallSealsKIF
     #    battle or trade so the data survives Marshal serialization to the
     #    remote client.  This is the fallback for when capsule slot data
     #    is unavailable (e.g. on the opponent's client).
-    if pkmn.respond_to?(:ball_seal_placements) && pkmn.ball_seal_placements.is_a?(Array) && !pkmn.ball_seal_placements.empty?
-      # Re-resolve seal symbols through LEGACY_SEAL_MAP in case the data
-      # was baked on an older version with renamed seals, and ensure
-      # coords are Floats (Marshal may have preserved Integer 0/1).
-      placements = pkmn.ball_seal_placements.map do |p|
-        { :seal => resolve_seal_sym(p[:seal]), :x => p[:x].to_f, :y => p[:y].to_f }
-      end
-      return { :name => "Baked", :placements => placements }
-    end
+    baked = read_baked_placements(pkmn)
+    return { :name => "Baked", :placements => baked } if baked
     # 4) Legacy direct seal array
     if pkmn.respond_to?(:ball_seals) && pkmn.ball_seals && !pkmn.ball_seals.empty?
       placements = []
@@ -2414,6 +2434,7 @@ module BallSealsKIF
         { :seal => resolve_seal_sym(p[:seal]), :x => p[:x].to_f, :y => p[:y].to_f }
       end
       pkmn.ball_seal_placements = baked if pkmn.respond_to?(:ball_seal_placements=)
+      pkmn.ball_seal_owner_pid = local_trainer_id if pkmn.respond_to?(:ball_seal_owner_pid=)
       log("DBG: Baked #{baked.length} seal placements onto #{pkmn.respond_to?(:name) ? pkmn.name : 'Pokémon'}")
     else
       pkmn.ball_seal_placements = nil if pkmn.respond_to?(:ball_seal_placements=)
@@ -2428,6 +2449,105 @@ module BallSealsKIF
   def self.bake_seals_for_party(party_mons)
     return if !party_mons || !party_mons.is_a?(Array)
     party_mons.each { |pkmn| bake_capsule_to_pokemon(pkmn) }
+  end
+
+  # ── Multiplayer wire integration (KIF JSON serializer) ──────────────
+  # KIF link play (PvP / co-op / trades) does NOT use Marshal — Pokémon
+  # are exchanged through PokemonSerializer, which JSON-encodes them via
+  # Pokemon#to_json / #load_json.  A Pokémon's capsule SLOT number is
+  # meaningless on the remote client (it indexes the LOCAL player's
+  # capsule list), so we resolve the actual seal placements on the
+  # sending side and attach them to the JSON payload.  The receiving
+  # client reads them back through capsule_for_pokemon's remote/baked
+  # branches, so every player sees every other player's chosen capsule.
+
+  # Local trainer's numeric ID, used to stamp resolved placements so the
+  # remote side can distinguish a foreign Pokémon from one it owns.
+  def self.local_trainer_id
+    t = nil
+    t = $player  if defined?($player)  && $player
+    t = $Trainer if !t && defined?($Trainer) && $Trainer
+    return t.id if t && t.respond_to?(:id)
+    nil
+  rescue
+    nil
+  end
+
+  # Reads baked placements off a Pokémon, tolerating BOTH symbol keys
+  # (local clone / Marshal) and string keys (arrived over the wire as
+  # JSON).  Returns an Array of { :seal, :x, :y } Hashes, or nil.
+  def self.read_baked_placements(pkmn)
+    return nil if !pkmn || !pkmn.respond_to?(:ball_seal_placements)
+    arr = pkmn.ball_seal_placements
+    return nil if !arr.is_a?(Array) || arr.empty?
+    out = []
+    arr.each do |p|
+      next if !p.is_a?(Hash)
+      seal = p[:seal]; seal = p["seal"] if seal.nil?
+      x    = p[:x];    x    = p["x"]    if x.nil?
+      y    = p[:y];    y    = p["y"]    if y.nil?
+      next if seal.nil?
+      out << { :seal => resolve_seal_sym(seal), :x => x.to_f, :y => y.to_f }
+    end
+    out.empty? ? nil : out
+  rescue => e
+    log("read_baked_placements ERROR: #{e.class}: #{e.message}")
+    nil
+  end
+
+  # JSON-safe placement list (plain string keys + string seal id)
+  # resolved from the LOCAL player's capsule for +pkmn+, ready to drop
+  # straight into the serialized payload.  nil when no capsule assigned.
+  def self.wire_placements_for(pkmn)
+    cap = capsule_for_pokemon(pkmn)
+    return nil if !cap || !cap[:placements] || cap[:placements].empty?
+    cap[:placements].map do |p|
+      { "seal" => resolve_seal_sym(p[:seal]).to_s, "x" => p[:x].to_f, "y" => p[:y].to_f }
+    end
+  rescue => e
+    log("wire_placements_for ERROR: #{e.class}: #{e.message}")
+    nil
+  end
+
+  # Hooks KIF's PokemonSerializer so every Pokémon sent over the network
+  # carries its resolved seal layout + owner stamp.  Idempotent and safe
+  # on installs without the multiplayer module (it simply no-ops).
+  def self.install_serializer_hook
+    return if @serializer_hook_installed
+    return if !defined?(PokemonSerializer)
+    return if !PokemonSerializer.respond_to?(:serialize_pokemon)
+    return if PokemonSerializer.respond_to?(:__bskif_serialize_pokemon)
+    sc = PokemonSerializer.singleton_class
+    sc.send(:alias_method, :__bskif_serialize_pokemon, :serialize_pokemon)
+    sc.send(:define_method, :serialize_pokemon) do |pokemon|
+      data = __bskif_serialize_pokemon(pokemon)
+      begin
+        if data.is_a?(Hash) && pokemon.is_a?(Pokemon)
+          placements = BallSealsKIF.wire_placements_for(pokemon)
+          if placements && !placements.empty?
+            data["ball_seal_placements"] = placements
+            pid = BallSealsKIF.local_trainer_id
+            if pid
+              data["ball_seal_owner_pid"] = pid
+            else
+              data.delete("ball_seal_owner_pid")
+            end
+          else
+            # No capsule — strip any stale ivar dump so the remote side
+            # doesn't render leftover placements.
+            data["ball_seal_placements"] = nil
+            data.delete("ball_seal_owner_pid")
+          end
+        end
+      rescue => e
+        BallSealsKIF.log("serialize_pokemon seal-attach ERROR: #{e.class}: #{e.message}")
+      end
+      data
+    end
+    @serializer_hook_installed = true
+    log("Installed PokemonSerializer seal-attach hook")
+  rescue => e
+    log("install_serializer_hook ERROR: #{e.class}: #{e.message}")
   end
 
   def self.enqueue_capsule_for_pokemon(pkmn, idx_battler = nil)
@@ -3189,6 +3309,7 @@ module BallSealsKIF
     install_graphics_tick_hook
     install_storage_hooks
     install_overworld_menu_entry
+    install_serializer_hook
     log("=== #{MOD_NAME} #{MOD_VERSION} init ===")
     root = detect_game_root
     log("Game root detected: #{root}")

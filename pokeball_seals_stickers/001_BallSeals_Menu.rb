@@ -5,15 +5,25 @@
 # different KIF engine versions and mod-manager load orders:
 #
 #   1. MenuHandlers / PauseMenuHandlers  (modern KIF, Essentials v20+)
-#   2. Scene class hook via prepend       (standard Essentials v19)
-#   3. Screen class hook via prepend      (deferred re-installation)
+#   2. Scene class hook via alias-chain   (standard Essentials v19)
+#   3. Screen class hook via alias-chain  (deferred re-installation)
 #   4. Global pbShowCommands hook         (KIF custom pause menu flow)
 #
 # Strategy 4 is the critical one for KIF: the global pbShowCommands
 # function is typically a private method on Object in MKXP's Ruby 2.x,
 # so we must check private_method_defined? in addition to method_defined?.
-# Strategies 2 & 3 use Module#prepend so they survive later-loading
-# scripts that redefine the hooked methods on the same class.
+#
+# Strategies 2 & 3 use the classic Essentials alias-chain pattern
+# (alias_method the original, then redefine the method to call the saved
+# original) rather than Module#prepend.  This is deliberate and important
+# for cross-mod compatibility: other KIF mods (e.g. the Travel Expansion
+# Framework) wrap these same methods with their own alias-chains.  If we
+# used prepend, a later mod's `alias original_name method_name` would
+# capture OUR prepended method as its "original".  Its redefinition then
+# calls back into our prepended method, whose `super` lands back in the
+# later mod's redefinition -- an infinite loop (SystemStackError: stack
+# level too deep) that crashes the game when the pause menu opens.
+# Sequential alias-chains, by contrast, compose cleanly in any load order.
 
 module BallSealsKIF
   def self.ball_seals_label
@@ -227,26 +237,11 @@ module BallSealsKIF
   end
 
   # ==================================================================
-  # Strategy 2 — Scene class hook via prepend
-  # Uses Module#prepend so the hook survives even when later-loading
-  # KIF scripts redefine pbShowCommands on the same class.
+  # Strategy 2 — Scene class hook via alias-chain
+  # Aliases the existing pbShowCommands and redefines it to call the
+  # saved original.  Composes cleanly with other mods that alias-chain
+  # the same method (see the load-order note in the file header).
   # ==================================================================
-
-  # The prepend module — defined once, prepended to each scene class.
-  module SceneMenuHook
-    def pbShowCommands(*all_args)
-      begin
-        result = BallSealsKIF.wrap_show_commands(all_args, 0) { |*a|
-          super(*a)
-        }
-        return result unless result.nil?
-      rescue => e
-        BallSealsKIF.log("Scene hook ERROR: #{e.class}: #{e.message}")
-      end
-      super(*all_args)
-    end
-  end
-
   def self.install_scene_hooks
     installed = false
     scene_classes = []
@@ -255,11 +250,22 @@ module BallSealsKIF
     scene_classes << PauseMenu_Scene        if defined?(PauseMenu_Scene)
     scene_classes << PauseMenuScene         if defined?(PauseMenuScene)
     scene_classes.compact.uniq.each do |klass|
-      next if !klass.method_defined?(:pbShowCommands)
-      # Guard: only prepend once
-      next if klass.ancestors.include?(SceneMenuHook)
-      klass.send(:prepend, SceneMenuHook)
-      BallSealsKIF.log("Pause menu hook installed on #{klass}")
+      next if !has_any_method?(klass, :pbShowCommands)
+      # Guard: only install once per class (survives script reloads).
+      next if has_any_method?(klass, :bskif_orig_scene_pbShowCommands)
+      klass.send(:alias_method, :bskif_orig_scene_pbShowCommands, :pbShowCommands)
+      klass.send(:define_method, :pbShowCommands) do |*all_args|
+        begin
+          result = BallSealsKIF.wrap_show_commands(all_args, 0) { |*a|
+            send(:bskif_orig_scene_pbShowCommands, *a)
+          }
+          return result unless result.nil?
+        rescue => e
+          BallSealsKIF.log("Scene hook ERROR: #{e.class}: #{e.message}")
+        end
+        send(:bskif_orig_scene_pbShowCommands, *all_args)
+      end
+      BallSealsKIF.log("Pause menu hook installed on #{klass} (alias-chain)")
       installed = true
       break
     end
@@ -267,27 +273,27 @@ module BallSealsKIF
   end
 
   # ==================================================================
-  # Strategy 3 — Screen class hook via prepend
+  # Strategy 3 — Screen class hook via alias-chain
   # Wraps pbStartPokemonMenu so the global hook (Strategy 4) is
   # retried on every pause-menu open — handles the case where
-  # pbShowCommands wasn't yet defined at init time.
+  # pbShowCommands wasn't yet defined at init time.  Uses an
+  # alias-chain (not prepend) so it composes with other mods that
+  # alias pbStartPokemonMenu (e.g. the Travel Expansion Framework's
+  # 039_PokegearRematchCompatibility) — see the file header note.
   # ==================================================================
-
-  module ScreenMenuHook
-    def pbStartPokemonMenu(*args)
-      BallSealsKIF.ensure_global_hook
-      super(*args)
-    end
-  end
-
   def self.install_screen_hooks
     screen_classes = []
     screen_classes << PokemonPauseMenu if defined?(PokemonPauseMenu)
     screen_classes.compact.each do |klass|
-      next if !klass.method_defined?(:pbStartPokemonMenu)
-      next if klass.ancestors.include?(ScreenMenuHook)
-      klass.send(:prepend, ScreenMenuHook)
-      BallSealsKIF.log("Screen hook installed on #{klass}")
+      next if !has_any_method?(klass, :pbStartPokemonMenu)
+      # Guard: only install once per class (survives script reloads).
+      next if has_any_method?(klass, :bskif_orig_pbStartPokemonMenu)
+      klass.send(:alias_method, :bskif_orig_pbStartPokemonMenu, :pbStartPokemonMenu)
+      klass.send(:define_method, :pbStartPokemonMenu) do |*args|
+        BallSealsKIF.ensure_global_hook
+        send(:bskif_orig_pbStartPokemonMenu, *args)
+      end
+      BallSealsKIF.log("Screen hook installed on #{klass} (alias-chain)")
       return true
     end
     false
